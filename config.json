@@ -1,0 +1,43 @@
+
+{
+    "max_open_trades": 4,
+    "stake_currency": "USDT",
+    "stake_amount": "unlimited",
+    "tradable_balance_ratio": 0.99,
+    "amend_last_stake_amount": true,
+    "fiat_display_currency": "USD",
+    "timeframe": "5m",
+    "dry_run": false,
+    "dry_run_wallet": 1100,
+    "cancel_open_orders_on_exit": false,
+    "unfilledtimeout": {
+        "buy": 10,
+        "sell": 30,
+        "unit": "minutes"
+    },
+    "order_types": {
+        "buy": "market",
+        "sell": "market",
+        "emergencysell": "market",
+        "trailing_stop_loss": "market",
+        "stoploss": "market",
+        "stoploss_on_exchange": false,
+        "stoploss_on_exchange_interval": 60
+    },
+    "bid_strategy": {
+        "price_side": "ask",
+        "ask_last_balance": 0.0,
+        "use_order_book": false,
+        "order_book_top": 1,
+        "check_depth_of_market": {
+            "enabled": false,
+            "bids_to_ask_delta": 1
+        }
+    },
+    "ask_strategy": {
+        "price_side": "bid",
+        "use_order_book": false,
+        "order_book_min": 1,
+        "order_book_max": 1
+    }
+}
