@@ -1,4 +1,3 @@
-# BB_RPB_TSL
 
 ## Important Thing to notice
 ### 1) Do not use this strategy on live. It is still undergoing dry-run.
