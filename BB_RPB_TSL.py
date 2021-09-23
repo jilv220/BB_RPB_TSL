@@ -29,7 +29,7 @@ class BB_RPB_TSL(IStrategy):
         @author jilv220
 
         Simple bollinger brand strategy inspired by this blog  ( https://hacks-for-life.blogspot.com/2020/12/freqtrade-notes.html )
-        RPB, which stands for Real Pull Pack, taken from ( https://github.com/GeorgeMurAlkh/freqtrade-stuff/blob/main/user_data/strategies/TheRealPullbackV2.py )
+        RPB, which stands for Real Pull Back, taken from ( https://github.com/GeorgeMurAlkh/freqtrade-stuff/blob/main/user_data/strategies/TheRealPullbackV2.py )
         The trailing custom stoploss taken from BigZ04_TSL from Perkmeister ( modded by ilya )
 
         I modified it to better suit my taste and added Hyperopt for this strategy.
@@ -38,8 +38,9 @@ class BB_RPB_TSL(IStrategy):
 
     ##########################################################################
 
-    # Hyperopt result area     # buy => roi => sell
+    # Hyperopt result area     # buy(diable roi) => roi => sell
 
+    # buy space
     # buy space
     buy_params = {
         "buy_bb_delta": 0.012,
@@ -47,6 +48,7 @@ class BB_RPB_TSL(IStrategy):
         "buy_bb_width": 0.026,
         "buy_cci": -91,
         "buy_cci_length": 26,
+        "buy_closedelta": 15,
         "buy_rmi": 50,
         "buy_rmi_length": 9,
         "buy_srsi_fk": 41,
@@ -62,12 +64,9 @@ class BB_RPB_TSL(IStrategy):
     }
 
     minimal_roi = {
-        "0": 0.052,
-        "28": 0.042,
-        "30": 0.033,
-        "52": 0.027,
-        "79": 0.022,
-        "82": 0.019,
+        "0": 0.053,
+        "23": 0.039,
+        "62": 0.022,
         "186": 0
     }
 
@@ -96,6 +95,8 @@ class BB_RPB_TSL(IStrategy):
 
     buy_cci_length = IntParameter(25, 45, default=25)
     buy_rmi_length = IntParameter(8, 20, default=8)
+
+    buy_closedelta = IntParameter(12, 18, default=15)
 
     # Buy params toggle
     buy_is_dip_enabled = CategoricalParameter([True, False], default=True, space='buy', optimize=False, load=True)
@@ -212,7 +213,8 @@ class BB_RPB_TSL(IStrategy):
         dataframe['srsi_fk'] = stoch['fastk']
         dataframe['srsi_fd'] = stoch['fastd']
 
-        #print(dataframe)
+        # BinH
+        dataframe['closedelta'] = (dataframe['close'] - dataframe['close'].shift()).abs()
 
         return dataframe
 
@@ -241,6 +243,8 @@ class BB_RPB_TSL(IStrategy):
                     (dataframe['bb_width'] > self.buy_bb_width.value)
                 )
                 &
+
+                (dataframe['closedelta'] > dataframe['close'] * self.buy_closedelta.value / 1000 ) &
                 (dataframe['close'] < self.buy_bb_factor.value * dataframe['bb_lowerband3'])
             )
 
