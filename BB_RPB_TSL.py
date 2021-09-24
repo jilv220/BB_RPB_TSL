@@ -4,11 +4,11 @@ import numpy as np
 import talib.abstract as ta
 from freqtrade.persistence import Trade
 from freqtrade.strategy.interface import IStrategy
-from pandas import DataFrame, Series
+from pandas import DataFrame, Series, DatetimeIndex, merge
 from datetime import datetime, timedelta
 from freqtrade.strategy import merge_informative_pair, CategoricalParameter, DecimalParameter, IntParameter, stoploss_from_open
 from functools import reduce
-from technical.indicators import RMI
+from technical.indicators import RMI, zema
 
 # --------------------------------
 
@@ -22,6 +22,96 @@ def chaikin_mf(df, periods=20):
     mfv *= volume
     cmf = mfv.rolling(periods).sum() / volume.rolling(periods).sum()
     return Series(cmf, name='cmf')
+
+# PMAX
+def pmax(df, period, multiplier, length, MAtype, src):
+
+    period = int(period)
+    multiplier = int(multiplier)
+    length = int(length)
+    MAtype = int(MAtype)
+    src = int(src)
+
+    mavalue = f'MA_{MAtype}_{length}'
+    atr = f'ATR_{period}'
+    pm = f'pm_{period}_{multiplier}_{length}_{MAtype}'
+    pmx = f'pmX_{period}_{multiplier}_{length}_{MAtype}'
+
+    # MAtype==1 --> EMA
+    # MAtype==2 --> DEMA
+    # MAtype==3 --> T3
+    # MAtype==4 --> SMA
+    # MAtype==5 --> VIDYA
+    # MAtype==6 --> TEMA
+    # MAtype==7 --> WMA
+    # MAtype==8 --> VWMA
+    # MAtype==9 --> zema
+    if src == 1:
+        masrc = df["close"]
+    elif src == 2:
+        masrc = (df["high"] + df["low"]) / 2
+    elif src == 3:
+        masrc = (df["high"] + df["low"] + df["close"] + df["open"]) / 4
+
+    if MAtype == 1:
+        mavalue = ta.EMA(masrc, timeperiod=length)
+    elif MAtype == 2:
+        mavalue = ta.DEMA(masrc, timeperiod=length)
+    elif MAtype == 3:
+        mavalue = ta.T3(masrc, timeperiod=length)
+    elif MAtype == 4:
+        mavalue = ta.SMA(masrc, timeperiod=length)
+    elif MAtype == 5:
+        mavalue = VIDYA(df, length=length)
+    elif MAtype == 6:
+        mavalue = ta.TEMA(masrc, timeperiod=length)
+    elif MAtype == 7:
+        mavalue = ta.WMA(df, timeperiod=length)
+    elif MAtype == 8:
+        mavalue = vwma(df, length)
+    elif MAtype == 9:
+        mavalue = zema(df, period=length)
+
+    df[atr] = ta.ATR(df, timeperiod=period)
+    df['basic_ub'] = mavalue + ((multiplier/10) * df[atr])
+    df['basic_lb'] = mavalue - ((multiplier/10) * df[atr])
+
+
+    basic_ub = df['basic_ub'].values
+    final_ub = np.full(len(df), 0.00)
+    basic_lb = df['basic_lb'].values
+    final_lb = np.full(len(df), 0.00)
+
+    for i in range(period, len(df)):
+        final_ub[i] = basic_ub[i] if (
+            basic_ub[i] < final_ub[i - 1]
+            or mavalue[i - 1] > final_ub[i - 1]) else final_ub[i - 1]
+        final_lb[i] = basic_lb[i] if (
+            basic_lb[i] > final_lb[i - 1]
+            or mavalue[i - 1] < final_lb[i - 1]) else final_lb[i - 1]
+
+    df['final_ub'] = final_ub
+    df['final_lb'] = final_lb
+
+    pm_arr = np.full(len(df), 0.00)
+    for i in range(period, len(df)):
+        pm_arr[i] = (
+            final_ub[i] if (pm_arr[i - 1] == final_ub[i - 1]
+                                    and mavalue[i] <= final_ub[i])
+        else final_lb[i] if (
+            pm_arr[i - 1] == final_ub[i - 1]
+            and mavalue[i] > final_ub[i]) else final_lb[i]
+        if (pm_arr[i - 1] == final_lb[i - 1]
+            and mavalue[i] >= final_lb[i]) else final_ub[i]
+        if (pm_arr[i - 1] == final_lb[i - 1]
+            and mavalue[i] < final_lb[i]) else 0.00)
+
+    pm = Series(pm_arr)
+
+    # Mark the trend direction up/down
+    pmx = np.where((pm_arr > 0.00), np.where((mavalue < pm_arr), 'down',  'up'), np.NaN)
+
+    return pm, pmx
 
 class BB_RPB_TSL(IStrategy):
     '''
@@ -38,36 +128,34 @@ class BB_RPB_TSL(IStrategy):
 
     ##########################################################################
 
-    # Hyperopt result area     # buy(diable roi) => roi => sell
+    # Hyperopt result area
 
     # buy space
-    # buy space
     buy_params = {
-        "buy_bb_delta": 0.012,
+        "buy_bb_delta": 0.013,
         "buy_bb_factor": 0.99,
-        "buy_bb_width": 0.026,
-        "buy_cci": -91,
-        "buy_cci_length": 26,
-        "buy_closedelta": 15,
-        "buy_rmi": 50,
-        "buy_rmi_length": 9,
-        "buy_srsi_fk": 41,
+        "buy_bb_width": 0.022,
+        "buy_cci": -109,
+        "buy_cci_dump": -513,
+        "buy_cci_length": 30,
+        "buy_closedelta": 12,
+        "buy_rmi": 46,
+        "buy_rmi_length": 10,
+        "buy_srsi_fk": 35,
     }
 
     # sell space
     sell_params = {
-        "pHSL": -0.04,
-        "pPF_1": 0.011,
+        "pHSL": -0.101,
+        "pPF_1": 0.015,
         "pPF_2": 0.069,
-        "pSL_1": 0.011,
+        "pSL_1": 0.014,
         "pSL_2": 0.068,
     }
 
+    # really hard to use this
     minimal_roi = {
-        "0": 0.053,
-        "23": 0.039,
-        "62": 0.022,
-        "186": 0
+        "0": 0.10,
     }
 
     # Optimal timeframe for the strategy
@@ -85,18 +173,18 @@ class BB_RPB_TSL(IStrategy):
 
     ## Buy params
 
-    buy_rmi = IntParameter(30, 50, default=35)
-    buy_cci = IntParameter(-135, -90, default=-133)
-    buy_srsi_fk = IntParameter(30, 50, default=25)
+    is_optimize_dip = True
+    buy_rmi = IntParameter(30, 50, default=35, optimize= is_optimize_dip)
+    buy_cci = IntParameter(-135, -90, default=-133, optimize= is_optimize_dip)
+    buy_srsi_fk = IntParameter(30, 50, default=25, optimize= is_optimize_dip)
+    buy_cci_length = IntParameter(25, 45, default=25, optimize = is_optimize_dip)
+    buy_rmi_length = IntParameter(8, 20, default=8, optimize = is_optimize_dip)
 
-    buy_bb_width = DecimalParameter(0.022, 0.027, default=0.025)
-    buy_bb_delta = DecimalParameter(0.012, 0.022, default=0.0125)
-    buy_bb_factor = DecimalParameter(0.985, 0.99, default=0.99)
-
-    buy_cci_length = IntParameter(25, 45, default=25)
-    buy_rmi_length = IntParameter(8, 20, default=8)
-
-    buy_closedelta = IntParameter(12, 18, default=15)
+    is_optimize_break = True
+    buy_bb_width = DecimalParameter(0.022, 0.027, default=0.025, optimize = is_optimize_break)
+    buy_bb_delta = DecimalParameter(0.012, 0.022, default=0.0125, optimize = is_optimize_break)
+    buy_bb_factor = DecimalParameter(0.985, 0.99, default=0.99, optimize = is_optimize_break)
+    buy_closedelta = IntParameter(12, 18, default=15, optimize = is_optimize_break)
 
     # Buy params toggle
     buy_is_dip_enabled = CategoricalParameter([True, False], default=True, space='buy', optimize=False, load=True)
@@ -167,7 +255,7 @@ class BB_RPB_TSL(IStrategy):
         else:
             sl_profit = HSL
 
-        # For hyperopt only
+        # Only for hyperopt invalid return
         if (sl_profit >= current_profit):
             return -0.99
 
@@ -201,7 +289,9 @@ class BB_RPB_TSL(IStrategy):
         for val in self.buy_cci_length.range:
             dataframe[f'cci_length_{val}'] = ta.CCI(dataframe, val)
 
-        #dataframe['cci'] = ta.CCI(dataframe, 30)
+        dataframe['cci'] = ta.CCI(dataframe, 26)
+        dataframe['cci_long'] = ta.CCI(dataframe, 170)
+        dataframe['cmf'] = chaikin_mf(dataframe)
 
         # RMI hyperopt
         for val in self.buy_rmi_length.range:
@@ -215,6 +305,14 @@ class BB_RPB_TSL(IStrategy):
 
         # BinH
         dataframe['closedelta'] = (dataframe['close'] - dataframe['close'].shift()).abs()
+
+        # Heiken Ashi
+        heikinashi = qtpylib.heikinashi(dataframe)
+
+        # pmax
+        dataframe['pm'], dataframe['pmx'] = pmax(heikinashi, MAtype=1, length=9, multiplier=27, period=10, src=3)
+        dataframe['source'] = (dataframe['high'] + dataframe['low'] + dataframe['open'] + dataframe['close']) / 4
+        dataframe['pmax_thresh'] = ta.EMA(dataframe['source'], timeperiod=9)
 
         return dataframe
 
@@ -231,7 +329,7 @@ class BB_RPB_TSL(IStrategy):
                 (dataframe['srsi_fk'] < self.buy_srsi_fk.value)
             )
 
-            conditions.append(is_dip)
+            #conditions.append(is_dip)
 
         if self.buy_is_break_enabled.value:
 
@@ -243,24 +341,25 @@ class BB_RPB_TSL(IStrategy):
                     (dataframe['bb_width'] > self.buy_bb_width.value)
                 )
                 &
-
-                (dataframe['closedelta'] > dataframe['close'] * self.buy_closedelta.value / 1000 ) &
+                (dataframe['closedelta'] > dataframe['close'] * self.buy_closedelta.value / 1000 ) &    #from BinH
                 (dataframe['close'] < self.buy_bb_factor.value * dataframe['bb_lowerband3'])
             )
 
-            conditions.append(is_break)
+            #conditions.append(is_break)
+        is_BB_checked = is_dip & is_break
 
-        # Check that volume is not 0
-        conditions.append(dataframe['volume'] > 0)
+        ## condition append
+        conditions.append(is_BB_checked)
 
         if conditions:
-            dataframe.loc[ reduce(lambda x, y: x & y, conditions), 'buy' ] = 1
+            dataframe.loc[ reduce(lambda x, y: x | y, conditions), 'buy' ] = 1
 
         return dataframe
 
     def populate_sell_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
         dataframe.loc[
             (
+                (dataframe['cci'] < -350) &     # insane flash dump
                 (dataframe['volume'] > 0) # Make sure Volume is not 0
             ),
             'sell'] = 0                                                                      # Disabled
