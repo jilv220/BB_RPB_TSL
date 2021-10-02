@@ -34,7 +34,7 @@ class BB_RPB_TSL(IStrategy):
 
     # buy space
     buy_params = {
-        "buy_btc_safe": -297,
+        "buy_btc_safe": -289,
         "buy_btc_safe_1d": -0.05,
         "buy_threshold": 0.003,
         "buy_bb_factor": 0.999,
@@ -47,6 +47,11 @@ class BB_RPB_TSL(IStrategy):
         "buy_srsi_fk": 32,
         "buy_closedelta": 12.148,
         "buy_ema_diff": 0.022,
+        "buy_adx": 20,
+        "buy_fastd": 20,
+        "buy_fastk": 22,
+        "buy_ema_cofi": 0.98,
+        "buy_ewo_high": 3.553
     }
 
     # sell space
@@ -56,6 +61,7 @@ class BB_RPB_TSL(IStrategy):
         "pPF_2": 0.065,
         "pSL_1": 0.019,
         "pSL_2": 0.062,
+        "sell_btc_safe": -389,
     }
 
     # really hard to use this
@@ -85,7 +91,7 @@ class BB_RPB_TSL(IStrategy):
     buy_cci_length = IntParameter(25, 45, default=25, optimize = is_optimize_dip)
     buy_rmi_length = IntParameter(8, 20, default=8, optimize = is_optimize_dip)
 
-    is_optimize_break = True
+    is_optimize_break = False
     buy_bb_width = DecimalParameter(0.05, 0.2, default=0.15, optimize = is_optimize_break)
     buy_bb_delta = DecimalParameter(0.025, 0.08, default=0.04, optimize = is_optimize_break)
 
@@ -101,7 +107,14 @@ class BB_RPB_TSL(IStrategy):
     buy_ema_low = DecimalParameter(0.9, 0.99, default=0.942 , optimize = is_optimize_ewo)
     buy_ema_high = DecimalParameter(0.95, 1.2, default=1.084 , optimize = is_optimize_ewo)
 
-    is_optimize_btc_safe = False
+    is_optimize_cofi = False
+    buy_ema_cofi = DecimalParameter(0.96, 0.98, default=0.97 , optimize = is_optimize_cofi)
+    buy_fastk = IntParameter(20, 30, default=20, optimize = is_optimize_cofi)
+    buy_fastd = IntParameter(20, 30, default=20, optimize = is_optimize_cofi)
+    buy_adx = IntParameter(20, 30, default=30, optimize = is_optimize_cofi)
+    buy_ewo_high = DecimalParameter(2, 12, default=3.553, optimize = is_optimize_cofi)
+
+    is_optimize_btc_safe = True
     buy_btc_safe = IntParameter(-300, 50, default=-200, optimize = is_optimize_btc_safe)
     buy_btc_safe_1d = DecimalParameter(-0.075, -0.025, default=-0.05, optimize = is_optimize_btc_safe)
     buy_threshold = DecimalParameter(0.003, 0.012, default=0.008, optimize = is_optimize_btc_safe)
@@ -109,6 +122,9 @@ class BB_RPB_TSL(IStrategy):
     # Buy params toggle
     buy_is_dip_enabled = CategoricalParameter([True, False], default=True, space='buy', optimize=False, load=True)
     buy_is_break_enabled = CategoricalParameter([True, False], default=True, space='buy', optimize=False, load=True)
+
+    ## Sell params
+    sell_btc_safe = IntParameter(-400, -300, default=-365, optimize = True)
 
     ## Trailing params
 
@@ -238,6 +254,16 @@ class BB_RPB_TSL(IStrategy):
         # Elliot
         dataframe['EWO'] = EWO(dataframe, 50, 200)
 
+        # Cofi
+        stoch_fast = ta.STOCHF(dataframe, 5, 3, 0, 3, 0)
+        dataframe['fastd'] = stoch_fast['fastd']
+        dataframe['fastk'] = stoch_fast['fastk']
+        dataframe['adx'] = ta.ADX(dataframe)
+
+        # DI
+        dataframe['plus_di'] = ta.PLUS_DI(dataframe, timeperiod=25)
+        dataframe['minus_di'] = ta.MINUS_DI(dataframe, timeperiod=25)
+
         return dataframe
 
     def populate_buy_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
@@ -258,8 +284,8 @@ class BB_RPB_TSL(IStrategy):
 
             is_break = (
 
-                (   (dataframe['bb_delta'] > self.buy_bb_delta.value)
-                    &
+                (   (dataframe['bb_delta'] > self.buy_bb_delta.value)                                   #"buy_bb_delta": 0.025 0.036
+                    &                                                                                   #"buy_bb_width": 0.095 0.133
                     (dataframe['bb_width'] > self.buy_bb_width.value)
                 )
                 &
@@ -285,11 +311,20 @@ class BB_RPB_TSL(IStrategy):
                 (dataframe['rsi'] < self.buy_rsi.value)
             )
 
+        is_cofi = (
+                (dataframe['open'] < dataframe['ema_8'] * self.buy_ema_cofi.value) &
+                (qtpylib.crossed_above(dataframe['fastk'], dataframe['fastd'])) &
+                (dataframe['fastk'] < self.buy_fastk.value) &
+                (dataframe['fastd'] < self.buy_fastd.value) &
+                (dataframe['adx'] > self.buy_adx.value) &
+                (dataframe['EWO'] > self.buy_ewo_high.value)
+            )
+
         is_btc_safe = (
 
                 (dataframe['btc_diff'] > self.buy_btc_safe.value)
                &(dataframe['btc_5m'] - dataframe['btc_1d'] > dataframe['btc_1d'] * self.buy_btc_safe_1d.value)
-
+               &(dataframe['volume'] > 0)           # Make sure Volume is not 0
             )
 
         is_BB_checked = is_dip & is_break
@@ -301,21 +336,24 @@ class BB_RPB_TSL(IStrategy):
         #print(dataframe['btc_5m'] - dataframe['btc_1d'] > dataframe['btc_1d'] * -0.025)
 
         ## condition append
-        conditions.append(is_BB_checked & is_btc_safe)          # ~1.68 80%
-        conditions.append(is_local_uptrend & is_btc_safe)       # ~3.84 83%
-        conditions.append(is_ewo & is_btc_safe)                 # ~2.29 84%
+        conditions.append(is_BB_checked)          # ~1.63 85.4%
+        conditions.append(is_local_uptrend)       # ~3.59 87.5%
+        conditions.append(is_ewo)                 # ~2.17 89%
+        conditions.append(is_cofi)                # ~3.27 85%
 
         if conditions:
-            dataframe.loc[ reduce(lambda x, y: x | y, conditions), 'buy' ] = 1
+            dataframe.loc[ is_btc_safe & reduce(lambda x, y: x | y, conditions), 'buy' ] = 1
 
         return dataframe
 
     def populate_sell_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
         dataframe.loc[
             (
-                ( (qtpylib.crossed_below(dataframe['close'], dataframe['bb_upperband2']))
+                (
+                    (qtpylib.crossed_below(dataframe['close'], dataframe['bb_upperband3']))
                     |
-                  (dataframe['btc_diff'] < -365) )
+                    (dataframe['btc_diff'] < self.sell_btc_safe.value)
+                )
                 &
                 (dataframe['volume'] > 0) # Make sure Volume is not 0
             ),
