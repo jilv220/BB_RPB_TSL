@@ -2,6 +2,8 @@
 import freqtrade.vendor.qtpylib.indicators as qtpylib
 import numpy as np
 import talib.abstract as ta
+import pandas_ta as pta
+
 from freqtrade.persistence import Trade
 from freqtrade.strategy.interface import IStrategy
 from pandas import DataFrame, Series, DatetimeIndex, merge
@@ -17,6 +19,25 @@ def EWO(dataframe, ema_length=5, ema2_length=35):
     ema2 = ta.EMA(df, timeperiod=ema2_length)
     emadif = (ema1 - ema2) / df['low'] * 100
     return emadif
+
+# Williams %R
+def williams_r(dataframe: DataFrame, period: int = 14) -> Series:
+    """Williams %R, or just %R, is a technical analysis oscillator showing the current closing price in relation to the high and low
+        of the past N days (for a given N). It was developed by a publisher and promoter of trading materials, Larry Williams.
+        Its purpose is to tell whether a stock or commodity market is trading near the high or the low, or somewhere in between,
+        of its recent trading range.
+        The oscillator is on a negative scale, from −100 (lowest) up to 0 (highest).
+    """
+
+    highest_high = dataframe["high"].rolling(center=False, window=period).max()
+    lowest_low = dataframe["low"].rolling(center=False, window=period).min()
+
+    WR = Series(
+        (highest_high - dataframe["close"]) / (highest_high - lowest_low),
+        name=f"{period} Williams %R",
+        )
+
+    return WR * -100
 
 class BB_RPB_TSL(IStrategy):
     '''
@@ -34,24 +55,33 @@ class BB_RPB_TSL(IStrategy):
 
     # buy space
     buy_params = {
+        ##
         "buy_btc_safe": -289,
         "buy_btc_safe_1d": -0.05,
+        ##
         "buy_threshold": 0.003,
         "buy_bb_factor": 0.999,
         "buy_bb_delta": 0.025,
         "buy_bb_width": 0.095,
+        ##
         "buy_cci": -116,
         "buy_cci_length": 25,
         "buy_rmi": 49,
         "buy_rmi_length": 17,
         "buy_srsi_fk": 32,
+        ##
         "buy_closedelta": 12.148,
         "buy_ema_diff": 0.022,
+        ##
         "buy_adx": 20,
         "buy_fastd": 20,
         "buy_fastk": 22,
         "buy_ema_cofi": 0.98,
-        "buy_ewo_high": 3.553
+        "buy_ewo_high": 4.179,
+        ##
+        "buy_ema_high_2": 1.087,
+        "buy_ema_low_2": 0.970,
+        ##
     }
 
     # sell space
@@ -107,6 +137,10 @@ class BB_RPB_TSL(IStrategy):
     buy_ema_low = DecimalParameter(0.9, 0.99, default=0.942 , optimize = is_optimize_ewo)
     buy_ema_high = DecimalParameter(0.95, 1.2, default=1.084 , optimize = is_optimize_ewo)
 
+    is_optimize_ewo_2 = False
+    buy_ema_low_2 = DecimalParameter(0.96, 0.978, default=0.96 , optimize = is_optimize_ewo_2)
+    buy_ema_high_2 = DecimalParameter(1.05, 1.2, default=1.09 , optimize = is_optimize_ewo_2)
+
     is_optimize_cofi = False
     buy_ema_cofi = DecimalParameter(0.96, 0.98, default=0.97 , optimize = is_optimize_cofi)
     buy_fastk = IntParameter(20, 30, default=20, optimize = is_optimize_cofi)
@@ -114,7 +148,7 @@ class BB_RPB_TSL(IStrategy):
     buy_adx = IntParameter(20, 30, default=30, optimize = is_optimize_cofi)
     buy_ewo_high = DecimalParameter(2, 12, default=3.553, optimize = is_optimize_cofi)
 
-    is_optimize_btc_safe = True
+    is_optimize_btc_safe = False
     buy_btc_safe = IntParameter(-300, 50, default=-200, optimize = is_optimize_btc_safe)
     buy_btc_safe_1d = DecimalParameter(-0.075, -0.025, default=-0.05, optimize = is_optimize_btc_safe)
     buy_threshold = DecimalParameter(0.003, 0.012, default=0.008, optimize = is_optimize_btc_safe)
@@ -240,9 +274,17 @@ class BB_RPB_TSL(IStrategy):
         # BinH
         dataframe['closedelta'] = (dataframe['close'] - dataframe['close'].shift()).abs()
 
+        # SMA
+        dataframe['sma_15'] = ta.SMA(dataframe, timeperiod=15)
+        dataframe['sma_30'] = ta.SMA(dataframe, timeperiod=30)
+
+        # CTI
+        dataframe['cti'] = pta.cti(dataframe["close"], length=20)
+
         # EMA
         dataframe['ema_8'] = ta.EMA(dataframe, timeperiod=8)
         dataframe['ema_12'] = ta.EMA(dataframe, timeperiod=12)
+        dataframe['ema_13'] = ta.EMA(dataframe, timeperiod=13)
         dataframe['ema_16'] = ta.EMA(dataframe, timeperiod=16)
         dataframe['ema_26'] = ta.EMA(dataframe, timeperiod=26)
 
@@ -260,9 +302,11 @@ class BB_RPB_TSL(IStrategy):
         dataframe['fastk'] = stoch_fast['fastk']
         dataframe['adx'] = ta.ADX(dataframe)
 
-        # DI
-        dataframe['plus_di'] = ta.PLUS_DI(dataframe, timeperiod=25)
-        dataframe['minus_di'] = ta.MINUS_DI(dataframe, timeperiod=25)
+        # Williams %R
+        dataframe['r_14'] = williams_r(dataframe, period=14)
+
+        # Volume
+        dataframe['volume_mean_4'] = dataframe['volume'].rolling(4).mean().shift(1)
 
         return dataframe
 
@@ -311,6 +355,14 @@ class BB_RPB_TSL(IStrategy):
                 (dataframe['rsi'] < self.buy_rsi.value)
             )
 
+        is_ewo_2 = (
+                (dataframe['rsi_fast'] < self.buy_rsi_fast.value) &
+                (dataframe['close'] < dataframe['ema_8'] * self.buy_ema_low_2.value) &
+                (dataframe['EWO'] > self.buy_ewo_high.value) &
+                (dataframe['close'] < dataframe['ema_16'] * self.buy_ema_high_2.value) &
+                (dataframe['rsi'] < self.buy_rsi.value)
+            )
+
         is_cofi = (
                 (dataframe['open'] < dataframe['ema_8'] * self.buy_ema_cofi.value) &
                 (qtpylib.crossed_above(dataframe['fastk'], dataframe['fastd'])) &
@@ -318,6 +370,25 @@ class BB_RPB_TSL(IStrategy):
                 (dataframe['fastd'] < self.buy_fastd.value) &
                 (dataframe['adx'] > self.buy_adx.value) &
                 (dataframe['EWO'] > self.buy_ewo_high.value)
+            )
+
+        # NFI quick mode
+
+        is_nfi_32 = (
+                (dataframe['rsi_slow'] < dataframe['rsi_slow'].shift(1)) &
+                (dataframe['rsi_fast'] < 46) &
+                (dataframe['rsi'] > 19) &
+                (dataframe['close'] < dataframe['sma_15'] * 0.942) &
+                (dataframe['cti'] < -0.86)
+            )
+
+        is_nfi_33 = (
+                (dataframe['close'] < (dataframe['ema_13'] * 0.978)) &
+                (dataframe['EWO'] > 8) &
+                (dataframe['cti'] < -0.88) &
+                (dataframe['rsi'] < 32) &
+                (dataframe['r_14'] < -98.0) &
+                (dataframe['volume'] < (dataframe['volume_mean_4'] * 2.5))
             )
 
         is_btc_safe = (
@@ -336,10 +407,13 @@ class BB_RPB_TSL(IStrategy):
         #print(dataframe['btc_5m'] - dataframe['btc_1d'] > dataframe['btc_1d'] * -0.025)
 
         ## condition append
-        conditions.append(is_BB_checked)          # ~1.63 85.4%
-        conditions.append(is_local_uptrend)       # ~3.59 87.5%
-        conditions.append(is_ewo)                 # ~2.17 89%
-        conditions.append(is_cofi)                # ~3.27 85%
+        conditions.append(is_BB_checked)          # ~1.7 89%
+        conditions.append(is_local_uptrend)       # ~3.84 90.2%
+        conditions.append(is_ewo)                 # ~2.26 93.5%
+        conditions.append(is_ewo_2)               # ~3.68 90.3%
+        conditions.append(is_cofi)                # ~3.21 90.8%
+        conditions.append(is_nfi_32)              # ~2.43 91.3%
+        conditions.append(is_nfi_33)              # ~0.11 100%
 
         if conditions:
             dataframe.loc[ is_btc_safe & reduce(lambda x, y: x | y, conditions), 'buy' ] = 1
@@ -350,8 +424,6 @@ class BB_RPB_TSL(IStrategy):
         dataframe.loc[
             (
                 (
-                    (qtpylib.crossed_below(dataframe['close'], dataframe['bb_upperband3']))
-                    |
                     (dataframe['btc_diff'] < self.sell_btc_safe.value)
                 )
                 &
