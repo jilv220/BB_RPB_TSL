@@ -81,7 +81,6 @@ class BB_RPB_TSL(IStrategy):
         ##
         "buy_ema_high_2": 1.087,
         "buy_ema_low_2": 0.970,
-        ##
     }
 
     # sell space
@@ -158,19 +157,20 @@ class BB_RPB_TSL(IStrategy):
     buy_is_break_enabled = CategoricalParameter([True, False], default=True, space='buy', optimize=False, load=True)
 
     ## Sell params
-    sell_btc_safe = IntParameter(-400, -300, default=-365, optimize = True)
+    sell_btc_safe = IntParameter(-400, -300, default=-365, optimize = False)
 
     ## Trailing params
 
+    is_optimize_trailing = False
     # hard stoploss profit
-    pHSL = DecimalParameter(-0.200, -0.040, default=-0.08, decimals=3, space='sell', load=True)
+    pHSL = DecimalParameter(-0.200, -0.040, default=-0.08, decimals=3, space='sell', optimize=is_optimize_trailing , load=True)
     # profit threshold 1, trigger point, SL_1 is used
-    pPF_1 = DecimalParameter(0.008, 0.020, default=0.016, decimals=3, space='sell', load=True)
-    pSL_1 = DecimalParameter(0.008, 0.020, default=0.011, decimals=3, space='sell', load=True)
+    pPF_1 = DecimalParameter(0.008, 0.020, default=0.016, decimals=3, space='sell', optimize=is_optimize_trailing , load=True)
+    pSL_1 = DecimalParameter(0.008, 0.020, default=0.011, decimals=3, space='sell', optimize=is_optimize_trailing , load=True)
 
     # profit threshold 2, SL_2 is used
-    pPF_2 = DecimalParameter(0.040, 0.100, default=0.080, decimals=3, space='sell', load=True)
-    pSL_2 = DecimalParameter(0.020, 0.070, default=0.040, decimals=3, space='sell', load=True)
+    pPF_2 = DecimalParameter(0.040, 0.100, default=0.080, decimals=3, space='sell', optimize=is_optimize_trailing , load=True)
+    pSL_2 = DecimalParameter(0.020, 0.070, default=0.040, decimals=3, space='sell', optimize=is_optimize_trailing , load=True)
 
     ############################################################################
 
@@ -275,6 +275,7 @@ class BB_RPB_TSL(IStrategy):
         dataframe['closedelta'] = (dataframe['close'] - dataframe['close'].shift()).abs()
 
         # SMA
+        dataframe['sma_9'] = ta.SMA(dataframe, timeperiod=9)
         dataframe['sma_15'] = ta.SMA(dataframe, timeperiod=15)
         dataframe['sma_30'] = ta.SMA(dataframe, timeperiod=30)
 
@@ -313,6 +314,7 @@ class BB_RPB_TSL(IStrategy):
     def populate_buy_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
 
         conditions = []
+        dataframe.loc[:, 'buy_tag'] = ''
 
         if self.buy_is_dip_enabled.value:
 
@@ -408,12 +410,25 @@ class BB_RPB_TSL(IStrategy):
 
         ## condition append
         conditions.append(is_BB_checked)          # ~1.7 89%
+        dataframe.loc[is_BB_checked, 'buy_tag'] += 'bb '
+
         conditions.append(is_local_uptrend)       # ~3.84 90.2%
+        dataframe.loc[is_local_uptrend, 'buy_tag'] += 'local uptrend '
+
         conditions.append(is_ewo)                 # ~2.26 93.5%
+        dataframe.loc[is_ewo, 'buy_tag'] += 'ewo '
+
         conditions.append(is_ewo_2)               # ~3.68 90.3%
+        dataframe.loc[is_ewo_2, 'buy_tag'] += 'ewo2 '
+
         conditions.append(is_cofi)                # ~3.21 90.8%
+        dataframe.loc[is_cofi, 'buy_tag'] += 'cofi '
+
         conditions.append(is_nfi_32)              # ~2.43 91.3%
+        dataframe.loc[is_nfi_32, 'buy_tag'] += 'nfi 32 '
+
         conditions.append(is_nfi_33)              # ~0.11 100%
+        dataframe.loc[is_nfi_33, 'buy_tag'] += 'nfi 33 '
 
         if conditions:
             dataframe.loc[ is_btc_safe & reduce(lambda x, y: x | y, conditions), 'buy' ] = 1
@@ -421,6 +436,7 @@ class BB_RPB_TSL(IStrategy):
         return dataframe
 
     def populate_sell_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
+
         dataframe.loc[
             (
                 (
