@@ -39,6 +39,27 @@ def williams_r(dataframe: DataFrame, period: int = 14) -> Series:
 
     return WR * -100
 
+# Chaikin Money Flow
+def chaikin_money_flow(dataframe, n=20, fillna=False) -> Series:
+    """Chaikin Money Flow (CMF)
+    It measures the amount of Money Flow Volume over a specific period.
+    http://stockcharts.com/school/doku.php?id=chart_school:technical_indicators:chaikin_money_flow_cmf
+    Args:
+        dataframe(pandas.Dataframe): dataframe containing ohlcv
+        n(int): n period.
+        fillna(bool): if True, fill nan values.
+    Returns:
+        pandas.Series: New feature generated.
+    """
+    mfv = ((dataframe['close'] - dataframe['low']) - (dataframe['high'] - dataframe['close'])) / (dataframe['high'] - dataframe['low'])
+    mfv = mfv.fillna(0.0)  # float division by zero
+    mfv *= dataframe['volume']
+    cmf = (mfv.rolling(n, min_periods=0).sum()
+           / dataframe['volume'].rolling(n, min_periods=0).sum())
+    if fillna:
+        cmf = cmf.replace([np.inf, -np.inf], np.nan).fillna(0)
+    return Series(cmf, name='cmf')
+
 class BB_RPB_TSL(IStrategy):
     '''
         BB_RPB_TSL
@@ -85,12 +106,17 @@ class BB_RPB_TSL(IStrategy):
 
     # sell space
     sell_params = {
+        ##
         "pHSL": -0.178,
         "pPF_1": 0.019,
         "pPF_2": 0.065,
         "pSL_1": 0.019,
         "pSL_2": 0.062,
+        ##
         "sell_btc_safe": -389,
+        "sell_cmf": -0.046,
+        "sell_ema": 0.988,
+        "sell_ema_close_delta": 0.022,
     }
 
     # really hard to use this
@@ -158,6 +184,11 @@ class BB_RPB_TSL(IStrategy):
 
     ## Sell params
     sell_btc_safe = IntParameter(-400, -300, default=-365, optimize = False)
+
+    is_optimize_sell_stoploss = True
+    sell_cmf = DecimalParameter(-0.4, 0.0, default=0.0, optimize = is_optimize_sell_stoploss)
+    sell_ema_close_delta = DecimalParameter(0.022, 0.027, default= 0.024, optimize = is_optimize_sell_stoploss)
+    sell_ema = DecimalParameter(0.97, 0.99, default=0.987 , optimize = is_optimize_sell_stoploss)
 
     ## Trailing params
 
@@ -282,12 +313,16 @@ class BB_RPB_TSL(IStrategy):
         # CTI
         dataframe['cti'] = pta.cti(dataframe["close"], length=20)
 
+        # CMF
+        dataframe['cmf'] = chaikin_money_flow(dataframe, 20)
+
         # EMA
         dataframe['ema_8'] = ta.EMA(dataframe, timeperiod=8)
         dataframe['ema_12'] = ta.EMA(dataframe, timeperiod=12)
         dataframe['ema_13'] = ta.EMA(dataframe, timeperiod=13)
         dataframe['ema_16'] = ta.EMA(dataframe, timeperiod=16)
         dataframe['ema_26'] = ta.EMA(dataframe, timeperiod=26)
+        dataframe['ema_200'] = ta.EMA(dataframe, timeperiod=200)
 
         # RSI
         dataframe['rsi'] = ta.RSI(dataframe, timeperiod=14)
@@ -441,6 +476,13 @@ class BB_RPB_TSL(IStrategy):
             (
                 (
                     (dataframe['btc_diff'] < self.sell_btc_safe.value)
+                    |
+                    (
+                        (dataframe['close'] < dataframe['ema_200'] * self.sell_ema.value) &
+                        (dataframe['cmf'] < self.sell_cmf.value) &
+                        (((dataframe['ema_200'] - dataframe['close']) / dataframe['close']) < self.sell_ema_close_delta.value) &
+                        (dataframe['rsi'] > dataframe['rsi'].shift(1))
+                    )
                 )
                 &
                 (dataframe['volume'] > 0) # Make sure Volume is not 0
