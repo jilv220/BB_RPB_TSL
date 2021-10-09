@@ -10,7 +10,7 @@ from pandas import DataFrame, Series, DatetimeIndex, merge
 from datetime import datetime, timedelta
 from freqtrade.strategy import merge_informative_pair, CategoricalParameter, DecimalParameter, IntParameter, stoploss_from_open
 from functools import reduce
-from technical.indicators import RMI, zema
+from technical.indicators import RMI, zema, ichimoku
 
 # --------------------------------
 def EWO(dataframe, ema_length=5, ema2_length=35):
@@ -82,6 +82,7 @@ class BB_RPB_TSL(IStrategy):
         ##
         "buy_threshold": 0.003,
         "buy_bb_factor": 0.999,
+        #
         "buy_bb_delta": 0.025,
         "buy_bb_width": 0.095,
         ##
@@ -95,10 +96,10 @@ class BB_RPB_TSL(IStrategy):
         "buy_ema_diff": 0.022,
         ##
         "buy_adx": 20,
-        "buy_fastd": 20,
-        "buy_fastk": 22,
         "buy_ema_cofi": 0.98,
-        "buy_ewo_high": 4.179,
+        "buy_ewo_high": 2.055,
+        "buy_fastd": 21,
+        "buy_fastk": 30,
         ##
         "buy_ema_high_2": 1.087,
         "buy_ema_low_2": 0.970,
@@ -108,10 +109,10 @@ class BB_RPB_TSL(IStrategy):
     sell_params = {
         ##
         "pHSL": -0.178,
-        "pPF_1": 0.019,
-        "pPF_2": 0.065,
-        "pSL_1": 0.019,
-        "pSL_2": 0.062,
+        "pPF_1": 0.01,
+        "pPF_2": 0.048,
+        "pSL_1": 0.009,
+        "pSL_2": 0.043,
         ##
         "sell_btc_safe": -389,
         "sell_cmf": -0.046,
@@ -147,8 +148,8 @@ class BB_RPB_TSL(IStrategy):
     buy_rmi_length = IntParameter(8, 20, default=8, optimize = is_optimize_dip)
 
     is_optimize_break = False
-    buy_bb_width = DecimalParameter(0.05, 0.2, default=0.15, optimize = is_optimize_break)
-    buy_bb_delta = DecimalParameter(0.025, 0.08, default=0.04, optimize = is_optimize_break)
+    buy_bb_width = DecimalParameter(0.065, 0.135, default=0.095, optimize = is_optimize_break)
+    buy_bb_delta = DecimalParameter(0.018, 0.035, default=0.025, optimize = is_optimize_break)
 
     is_optimize_local_dip = False
     buy_ema_diff = DecimalParameter(0.022, 0.027, default=0.025, optimize = is_optimize_local_dip)
@@ -166,33 +167,30 @@ class BB_RPB_TSL(IStrategy):
     buy_ema_low_2 = DecimalParameter(0.96, 0.978, default=0.96 , optimize = is_optimize_ewo_2)
     buy_ema_high_2 = DecimalParameter(1.05, 1.2, default=1.09 , optimize = is_optimize_ewo_2)
 
-    is_optimize_cofi = False
+    is_optimize_cofi = True
     buy_ema_cofi = DecimalParameter(0.96, 0.98, default=0.97 , optimize = is_optimize_cofi)
     buy_fastk = IntParameter(20, 30, default=20, optimize = is_optimize_cofi)
     buy_fastd = IntParameter(20, 30, default=20, optimize = is_optimize_cofi)
     buy_adx = IntParameter(20, 30, default=30, optimize = is_optimize_cofi)
-    buy_ewo_high = DecimalParameter(2, 12, default=3.553, optimize = is_optimize_cofi)
+    buy_ewo_high = DecimalParameter(2, 12, default=3.553, optimize = False)
 
     is_optimize_btc_safe = False
     buy_btc_safe = IntParameter(-300, 50, default=-200, optimize = is_optimize_btc_safe)
     buy_btc_safe_1d = DecimalParameter(-0.075, -0.025, default=-0.05, optimize = is_optimize_btc_safe)
     buy_threshold = DecimalParameter(0.003, 0.012, default=0.008, optimize = is_optimize_btc_safe)
 
-    # Buy params toggle
-    buy_is_dip_enabled = CategoricalParameter([True, False], default=True, space='buy', optimize=False, load=True)
-    buy_is_break_enabled = CategoricalParameter([True, False], default=True, space='buy', optimize=False, load=True)
-
     ## Sell params
+
     sell_btc_safe = IntParameter(-400, -300, default=-365, optimize = False)
 
-    is_optimize_sell_stoploss = True
+    is_optimize_sell_stoploss = False
     sell_cmf = DecimalParameter(-0.4, 0.0, default=0.0, optimize = is_optimize_sell_stoploss)
     sell_ema_close_delta = DecimalParameter(0.022, 0.027, default= 0.024, optimize = is_optimize_sell_stoploss)
     sell_ema = DecimalParameter(0.97, 0.99, default=0.987 , optimize = is_optimize_sell_stoploss)
 
     ## Trailing params
 
-    is_optimize_trailing = False
+    is_optimize_trailing = True
     # hard stoploss profit
     pHSL = DecimalParameter(-0.200, -0.040, default=-0.08, decimals=3, space='sell', optimize=is_optimize_trailing , load=True)
     # profit threshold 1, trigger point, SL_1 is used
@@ -207,9 +205,31 @@ class BB_RPB_TSL(IStrategy):
 
     def informative_pairs(self):
 
-        informative_pairs = [("BTC/USDT", "5m")]
+        pairs = self.dp.current_whitelist()
+        informative_pairs = [(pair, '1h') for pair in pairs]
+        informative_pairs += [("BTC/USDT", "5m")]
 
         return informative_pairs
+
+    def informative_1h_indicators(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
+
+        assert self.dp, "DataProvider is required for multiple timeframes."
+        # Get the informative pair
+        informative_1h = self.dp.get_pair_dataframe(pair=metadata['pair'], timeframe=self.inf_1h)
+
+        # Ichimoku
+        ichi = ichimoku(informative_1h, conversion_line_period=20, base_line_periods=60, laggin_span=120, displacement=30)
+        informative_1h['chikou_span'] = ichi['chikou_span']
+        informative_1h['tenkan_sen'] = ichi['tenkan_sen']
+        informative_1h['kijun_sen'] = ichi['kijun_sen']
+        informative_1h['senkou_a'] = ichi['senkou_span_a']
+        informative_1h['senkou_b'] = ichi['senkou_span_b']
+        informative_1h['leading_senkou_span_a'] = ichi['leading_senkou_span_a']
+        informative_1h['leading_senkou_span_b'] = ichi['leading_senkou_span_b']
+        informative_1h['chikou_span_greater'] = (informative_1h['chikou_span'] > informative_1h['senkou_a']).shift(30).fillna(False)
+        informative_1h.loc[:, 'cloud_top'] = informative_1h.loc[:, ['senkou_a', 'senkou_b']].max(axis=1)
+
+        return informative_1h
 
     ############################################################################
 
@@ -243,9 +263,7 @@ class BB_RPB_TSL(IStrategy):
 
     ############################################################################
 
-    def populate_indicators(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
-
-        assert self.dp, "DataProvider is required for multiple timeframes."
+    def normal_tf_indicators(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
 
         # Bollinger bands (hyperopt hard to implement)
         bollinger2 = qtpylib.bollinger_bands(qtpylib.typical_price(dataframe), window=20, stds=2)
@@ -346,24 +364,28 @@ class BB_RPB_TSL(IStrategy):
 
         return dataframe
 
+    def populate_indicators(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
+        # The indicators for the 1h informative timeframe
+        informative_1h = self.informative_1h_indicators(dataframe, metadata)
+        dataframe = merge_informative_pair(dataframe, informative_1h, self.timeframe, self.inf_1h, ffill=True)
+
+        # The indicators for the normal (5m) timeframe
+        dataframe = self.normal_tf_indicators(dataframe, metadata)
+
+        return dataframe
+
     def populate_buy_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
 
         conditions = []
         dataframe.loc[:, 'buy_tag'] = ''
 
-        if self.buy_is_dip_enabled.value:
-
-            is_dip = (
+        is_dip = (
                 (dataframe[f'rmi_length_{self.buy_rmi_length.value}'] < self.buy_rmi.value) &
                 (dataframe[f'cci_length_{self.buy_cci_length.value}'] <= self.buy_cci.value) &
                 (dataframe['srsi_fk'] < self.buy_srsi_fk.value)
             )
 
-            #conditions.append(is_dip)
-
-        if self.buy_is_break_enabled.value:
-
-            is_break = (
+        is_break = (
 
                 (   (dataframe['bb_delta'] > self.buy_bb_delta.value)                                   #"buy_bb_delta": 0.025 0.036
                     &                                                                                   #"buy_bb_width": 0.095 0.133
@@ -373,7 +395,14 @@ class BB_RPB_TSL(IStrategy):
                 (dataframe['closedelta'] > dataframe['close'] * self.buy_closedelta.value / 1000 ) &    # from BinH
                 (dataframe['close'] < dataframe['bb_lowerband3'] * self.buy_bb_factor.value)
             )
-            #conditions.append(is_break)
+
+        is_ichi_ok = (
+
+                (dataframe['tenkan_sen_1h'] > dataframe['kijun_sen_1h']) &
+                (dataframe['close'] > dataframe['cloud_top_1h']) &
+                (dataframe['leading_senkou_span_a_1h'] > dataframe['leading_senkou_span_b_1h']) &
+                (dataframe['chikou_span_greater_1h'])
+        )
 
         is_local_uptrend = (                                                                            # from NFI next gen
 
@@ -436,6 +465,7 @@ class BB_RPB_TSL(IStrategy):
             )
 
         is_BB_checked = is_dip & is_break
+        is_cofi_checked = is_cofi & is_ichi_ok
 
         #print(dataframe['btc_5m'])
         #print(dataframe['btc_1d'])
@@ -443,26 +473,26 @@ class BB_RPB_TSL(IStrategy):
         #print(dataframe['btc_1d'] * -0.025)
         #print(dataframe['btc_5m'] - dataframe['btc_1d'] > dataframe['btc_1d'] * -0.025)
 
-        ## condition append
-        conditions.append(is_BB_checked)          # ~1.7 89%
+        # condition append
+        conditions.append(is_BB_checked)                                           # ~1.61 / 87.9% / 29.36%
         dataframe.loc[is_BB_checked, 'buy_tag'] += 'bb '
 
-        conditions.append(is_local_uptrend)       # ~3.84 90.2%
+        conditions.append(is_local_uptrend)                                        # ~3.5 / 89.9% / 56.4%
         dataframe.loc[is_local_uptrend, 'buy_tag'] += 'local uptrend '
 
-        conditions.append(is_ewo)                 # ~2.26 93.5%
+        conditions.append(is_ewo)                                                  # ~2.19 / 92.6% / 28.12%
         dataframe.loc[is_ewo, 'buy_tag'] += 'ewo '
 
-        conditions.append(is_ewo_2)               # ~3.68 90.3%
+        conditions.append(is_ewo_2)                                                # ~3.65 / 82.5% / 21.56%
         dataframe.loc[is_ewo_2, 'buy_tag'] += 'ewo2 '
 
-        conditions.append(is_cofi)                # ~3.21 90.8%
-        dataframe.loc[is_cofi, 'buy_tag'] += 'cofi '
+        conditions.append(is_cofi_checked)                                         # ~2.57 / 82.2% / 52.42%
+        dataframe.loc[is_cofi_checked, 'buy_tag'] += 'cofi '
 
-        conditions.append(is_nfi_32)              # ~2.43 91.3%
+        conditions.append(is_nfi_32)                                               # ~2.3 / 88.2% / 42.35%
         dataframe.loc[is_nfi_32, 'buy_tag'] += 'nfi 32 '
 
-        conditions.append(is_nfi_33)              # ~0.11 100%
+        conditions.append(is_nfi_33)                                               # ~0.11 / 100%
         dataframe.loc[is_nfi_33, 'buy_tag'] += 'nfi 33 '
 
         if conditions:
