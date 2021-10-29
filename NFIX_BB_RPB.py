@@ -3477,6 +3477,27 @@ class NFIX_BB_RPB(IStrategy):
 
         return False, None
 
+    def sell_quick_mode(self, current_profit: float, max_profit:float, last_candle, previous_candle_1) -> tuple:
+        if (0.06 > current_profit > 0.02) and (last_candle['rsi_14'] > 80.0):
+            return True, 'signal_profit_q_1'
+
+        if (0.06 > current_profit > 0.02) and (last_candle['cti'] > 0.95):
+            return True, 'signal_profit_q_2'
+
+        if (0.04 > current_profit > 0.02) and (last_candle['pm'] <= last_candle['pmax_thresh']) and (last_candle['close'] > last_candle['sma_21'] * 1.1):
+            return True, 'signal_profit_q_pmax_bull'
+        if (0.045 > current_profit > 0.005) and (last_candle['pm'] > last_candle['pmax_thresh']) and (last_candle['close'] > last_candle['sma_21'] * 1.016):
+            return True, 'signal_profit_q_pmax_bear'
+
+        if (last_candle['momdiv_sell_1h'] == True) and (current_profit > 0.02):
+            return True, 'signal_profit_q_momdiv_1h'
+        if (last_candle['momdiv_sell'] == True) and (current_profit > 0.02):
+            return True, 'signal_profit_q_momdiv'
+        if (last_candle['momdiv_coh'] == True) and (current_profit > 0.02):
+            return True, 'signal_profit_q_momdiv_coh'
+
+        return False, None
+
     def custom_sell(self, pair: str, trade: 'Trade', current_time: 'datetime', current_rate: float,
                     current_profit: float, **kwargs):
         dataframe, _ = self.dp.get_analyzed_dataframe(pair, self.timeframe)
@@ -3501,6 +3522,12 @@ class NFIX_BB_RPB(IStrategy):
                 return f"{signal_name} ( {buy_tag})"
             # Skip remaining sell logic for long mode
             return None
+
+        # Quick sell mode
+        if all(c in ['empty', '38', '39'] for c in buy_tags):
+            sell, signal_name = self.sell_quick_mode(current_profit, max_profit, last_candle, previous_candle_1)
+            if sell and (signal_name is not None):
+                return f"{signal_name} ( {buy_tag})"
 
         # Original sell signals
         sell, signal_name = self.sell_signals(current_profit, max_profit, max_loss, last_candle, previous_candle_1, previous_candle_2, previous_candle_3, previous_candle_4, previous_candle_5, trade, current_time, buy_tag)
@@ -3680,7 +3707,14 @@ class NFIX_BB_RPB(IStrategy):
         informative_1h['ewo'] = ewo(informative_1h, 50, 200)
 
         # ROC
-        informative_1h['roc'] = ta.ROC(dataframe, timeperiod=9)
+        informative_1h['roc'] = ta.ROC(informative_1h, timeperiod=9)
+
+        # MOMDIV
+        mom = momdiv(dataframe)
+        informative_1h['momdiv_buy'] = mom['momdiv_buy']
+        informative_1h['momdiv_sell'] = mom['momdiv_sell']
+        informative_1h['momdiv_coh'] = mom['momdiv_coh']
+        informative_1h['momdiv_col'] = mom['momdiv_col']
 
         # S/R
         res_series = informative_1h['high'].rolling(window = 5, center=True).apply(lambda row: self.is_resistance(row), raw=True).shift(2)
@@ -3723,6 +3757,7 @@ class NFIX_BB_RPB(IStrategy):
 
         # SMA
         dataframe['sma_15'] = ta.SMA(dataframe, timeperiod=15)
+        dataframe['sma_21'] = ta.SMA(dataframe, timeperiod=21)
         dataframe['sma_30'] = ta.SMA(dataframe, timeperiod=30)
         dataframe['sma_75'] = ta.SMA(dataframe, timeperiod=75)
         dataframe['sma_200'] = ta.SMA(dataframe, timeperiod=200)
@@ -3820,11 +3855,12 @@ class NFIX_BB_RPB(IStrategy):
         dataframe['source'] = (dataframe['high'] + dataframe['low'] + dataframe['open'] + dataframe['close'])/4
         dataframe['pmax_thresh'] = ta.EMA(dataframe['source'], timeperiod=9)
 
-        # Cofi
-        stoch_fast = ta.STOCHF(dataframe, 5, 3, 0, 3, 0)
-        dataframe['fastd'] = stoch_fast['fastd']
-        dataframe['fastk'] = stoch_fast['fastk']
-        dataframe['adx'] = ta.ADX(dataframe)
+        # MOMDIV
+        mom = momdiv(dataframe)
+        dataframe['momdiv_buy'] = mom['momdiv_buy']
+        dataframe['momdiv_sell'] = mom['momdiv_sell']
+        dataframe['momdiv_coh'] = mom['momdiv_coh']
+        dataframe['momdiv_col'] = mom['momdiv_col']
 
         # Dip protection
         dataframe['tpct_change_0']   = self.top_percent_change(dataframe,0)
@@ -4349,7 +4385,7 @@ class NFIX_BB_RPB(IStrategy):
                     item_buy_logic.append(dataframe['rsi_14'] < 48.0)
                     item_buy_logic.append(dataframe['rsi_14_1h'] > 66.9)
 
-                # Condition #26 - Semi swing. Local deep dip.
+                # Condition #26 - (nfi 32)
                 elif index == 26:
                     # Non-Standard protections
                     item_buy_logic.append(dataframe['ema_20_1h'] > dataframe['ema_25_1h'])
@@ -4833,6 +4869,27 @@ def pmax(df, period, multiplier, length, MAtype, src):
     pmx = np.where((pm_arr > 0.00), np.where((mavalue < pm_arr), 'down',  'up'), np.NaN)
 
     return pm, pmx
+
+# Mom DIV
+def momdiv(dataframe: DataFrame, mom_length: int = 10, bb_length: int = 20, bb_dev: float = 2.0, lookback: int = 30) -> DataFrame:
+    mom: Series = ta.MOM(dataframe, timeperiod=mom_length)
+    upperband, middleband, lowerband = ta.BBANDS(mom, timeperiod=bb_length, nbdevup=bb_dev, nbdevdn=bb_dev, matype=0)
+    buy = qtpylib.crossed_below(mom, lowerband)
+    sell = qtpylib.crossed_above(mom, upperband)
+    hh = dataframe['high'].rolling(lookback).max()
+    ll = dataframe['low'].rolling(lookback).min()
+    coh = dataframe['high'] >= hh
+    col = dataframe['low'] <= ll
+    df = DataFrame({
+            "momdiv_mom": mom,
+            "momdiv_upperb": upperband,
+            "momdiv_lowerb": lowerband,
+            "momdiv_buy": buy,
+            "momdiv_sell": sell,
+            "momdiv_coh": coh,
+            "momdiv_col": col,
+        }, index=dataframe['close'].index)
+    return df
 
 class Cache:
 
