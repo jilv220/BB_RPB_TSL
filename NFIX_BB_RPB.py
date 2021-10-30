@@ -190,6 +190,33 @@ class NFIX_BB_RPB(IStrategy):
 
         return sl_new
 
+    ## Confirm Slippage
+    def confirm_trade_entry(self, pair: str, order_type: str, amount: float, rate: float, time_in_force: str, **kwargs) -> bool:
+
+        dataframe, _ = self.dp.get_analyzed_dataframe(pair, self.timeframe)
+
+        max_slip = 0.668
+
+        if(len(dataframe) < 1):
+            return False
+
+        dataframe = dataframe.iloc[-1].squeeze()
+        if ((rate > dataframe['close'])) :
+
+            slippage = ( (rate / dataframe['close']) - 1 ) * 100
+
+            #print("open rate is : " + str(rate))
+            #print("last candle close is : " + str(dataframe['close']))
+            #print("slippage is : " + str(slippage) )
+            #print("############################################################################")
+
+            if slippage < max_slip:
+                return True
+            else:
+                return False
+
+        return True
+
     #############################################################
 
     buy_params = {
