@@ -260,11 +260,13 @@ class NFIX_BB_RPB(IStrategy):
         "buy_condition_35_enable": True,        # False
         "buy_condition_36_enable": True,
         "buy_condition_37_enable": True,
+        ## quick mode
         "buy_condition_38_enable": True,
         "buy_condition_39_enable": True,
         ## BB_RPB end
         "buy_condition_40_enable": True,
         "buy_condition_41_enable": True,
+        "buy_condition_42_enable": True,
         #############
     }
 
@@ -1424,6 +1426,34 @@ class NFIX_BB_RPB(IStrategy):
             "close_over_pivot_offset"   : 1.0,
             "close_under_pivot_type"    : "none", # pivot, sup1, sup2, sup3, res1, res2, res3
             "close_under_pivot_offset"  : 1.0
+        },
+        42: {
+            "ema_fast"                  : False,
+            "ema_fast_len"              : "50",
+            "ema_slow"                  : False,
+            "ema_slow_len"              : "12",
+            "close_above_ema_fast"      : False,
+            "close_above_ema_fast_len"  : "200",
+            "close_above_ema_slow"      : False,
+            "close_above_ema_slow_len"  : "200",
+            "sma200_rising"             : False,
+            "sma200_rising_val"         : "30",
+            "sma200_1h_rising"          : False,
+            "sma200_1h_rising_val"      : "50",
+            "safe_dips_threshold_0"     : 0.02,
+            "safe_dips_threshold_2"     : None,
+            "safe_dips_threshold_12"    : None,
+            "safe_dips_threshold_144"   : None,
+            "safe_pump_6h_threshold"    : 0.55,
+            "safe_pump_12h_threshold"   : None,
+            "safe_pump_24h_threshold"   : None,
+            "safe_pump_36h_threshold"   : None,
+            "safe_pump_48h_threshold"   : None,
+            "btc_1h_not_downtrend"      : False,
+            "close_over_pivot_type"     : "none", # pivot, sup1, sup2, sup3, res1, res2, res3
+            "close_over_pivot_offset"   : 1.0,
+            "close_under_pivot_type"    : "res3", # pivot, sup1, sup2, sup3, res1, res2, res3
+            "close_under_pivot_offset"  : 1.25
         }
     }
 
@@ -1748,17 +1778,16 @@ class NFIX_BB_RPB(IStrategy):
                     return True, 'sell_stoploss_atr_4'
 
         # # Under & near EMA200, local uptrend move
-        # if (
-        #         (current_profit < -0.05)
-        #         and (last_candle['close'] < last_candle['ema_200'])
-        #         and (last_candle['cmf'] < 0.0)
-        #         and (((last_candle['ema_200'] - last_candle['close']) / last_candle['close']) < 0.024)
-        #         and last_candle['rsi_14'] > previous_candle_1['rsi_14']
-        #         and (last_candle['rsi_14'] > (last_candle['rsi_14_1h'] + 10.0))
-        #         and (last_candle['sma_200_dec_24'])
-        #         and (current_time - timedelta(minutes=2880) > trade.open_date_utc)
-        # ):
-        #     return True, 'sell_stoploss_u_e_1'
+        if (
+                (current_profit < -0.05)
+                and (last_candle['close'] < last_candle['ema_200'] * 0.988)
+                and (last_candle['cmf'] < -0.046)
+                and (((last_candle['ema_200'] - last_candle['close']) / last_candle['close']) < 0.022)
+                and last_candle['rsi_14'] > previous_candle_1['rsi_14']
+                and (last_candle['rsi_14'] > (last_candle['rsi_14_1h'] + 10.0))
+                and (last_candle['sma_200_dec_24'])
+        ):
+            return True, 'sell_stoploss_u_e_1'
 
         # # if (
         # #         (current_profit < -0.00)
@@ -4708,6 +4737,21 @@ class NFIX_BB_RPB(IStrategy):
                     item_buy_logic.append(dataframe['r_64'] < -65.0)
                     item_buy_logic.append(dataframe['r_96'] < -50.0)
                     item_buy_logic.append(dataframe['r_480_1h'] < -1.0)
+
+                 # NFIX 39
+                elif index == 42:
+                    # Non-Standard protections
+                    item_buy_logic.append(dataframe['ema_200'] > (dataframe['ema_200'].shift(12) * 1.01))
+                    item_buy_logic.append(dataframe['ema_200'] > (dataframe['ema_200'].shift(48) * 1.07))
+
+                    # Logic
+                    item_buy_logic.append(dataframe['bb40_2_low'].shift().gt(0))
+                    item_buy_logic.append(dataframe['bb40_2_delta'].gt(dataframe['close'] * 0.056))
+                    item_buy_logic.append(dataframe['closedelta'].gt(dataframe['close'] * 0.01))
+                    item_buy_logic.append(dataframe['tail'].lt(dataframe['bb40_2_delta'] * 0.5))
+                    item_buy_logic.append(dataframe['close'].lt(dataframe['bb40_2_low'].shift()))
+                    item_buy_logic.append(dataframe['close'].le(dataframe['close'].shift()))
+                    item_buy_logic.append(dataframe['close'] > dataframe['ema_50'] * 0.925)
 
                 item_buy_logic.append(dataframe['volume'] > 0)
                 item_buy = reduce(lambda x, y: x & y, item_buy_logic)
