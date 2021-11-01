@@ -267,6 +267,7 @@ class NFIX_BB_RPB(IStrategy):
         "buy_condition_40_enable": True,
         "buy_condition_41_enable": True,
         "buy_condition_42_enable": True,
+        "buy_condition_43_enable": True,
         #############
     }
 
@@ -1454,6 +1455,34 @@ class NFIX_BB_RPB(IStrategy):
             "close_over_pivot_offset"   : 1.0,
             "close_under_pivot_type"    : "res3", # pivot, sup1, sup2, sup3, res1, res2, res3
             "close_under_pivot_offset"  : 1.25
+        },
+        43: {
+            "ema_fast"                  : False,
+            "ema_fast_len"              : "50",
+            "ema_slow"                  : False,
+            "ema_slow_len"              : "12",
+            "close_above_ema_fast"      : False,
+            "close_above_ema_fast_len"  : "200",
+            "close_above_ema_slow"      : False,
+            "close_above_ema_slow_len"  : "200",
+            "sma200_rising"             : False,
+            "sma200_rising_val"         : "30",
+            "sma200_1h_rising"          : False,
+            "sma200_1h_rising_val"      : "50",
+            "safe_dips_threshold_0"     : 0.03,
+            "safe_dips_threshold_2"     : None,
+            "safe_dips_threshold_12"    : None,
+            "safe_dips_threshold_144"   : None,
+            "safe_pump_6h_threshold"    : 0.55,
+            "safe_pump_12h_threshold"   : None,
+            "safe_pump_24h_threshold"   : 0.7,
+            "safe_pump_36h_threshold"   : None,
+            "safe_pump_48h_threshold"   : None,
+            "btc_1h_not_downtrend"      : False,
+            "close_over_pivot_type"     : "none", # pivot, sup1, sup2, sup3, res1, res2, res3
+            "close_over_pivot_offset"   : 1.0,
+            "close_under_pivot_type"    : "none", # pivot, sup1, sup2, sup3, res1, res2, res3
+            "close_under_pivot_offset"  : 1.0
         }
     }
 
@@ -4556,7 +4585,7 @@ class NFIX_BB_RPB(IStrategy):
                     # Logic
                     item_buy_logic.append(dataframe['rsi_20'] < dataframe['rsi_20'].shift(1))
                     item_buy_logic.append(dataframe['rsi_4'] < 46)
-                    item_buy_logic.append(dataframe['close'] < dataframe['sma_15'] * 0.942)
+                    item_buy_logic.append(dataframe['close'] < dataframe['sma_15'] * 0.93)
                     item_buy_logic.append(dataframe['rsi_14'] > 19.0)
                     item_buy_logic.append(dataframe['cti'] < -0.86)
 
@@ -4752,6 +4781,17 @@ class NFIX_BB_RPB(IStrategy):
                     item_buy_logic.append(dataframe['close'].lt(dataframe['bb40_2_low'].shift()))
                     item_buy_logic.append(dataframe['close'].le(dataframe['close'].shift()))
                     item_buy_logic.append(dataframe['close'] > dataframe['ema_50'] * 0.925)
+
+                # NFIX 40
+                elif index == 43:
+                    # Non-Standard protections
+                    item_buy_logic.append(dataframe['ema_200'] > (dataframe['ema_200'].shift(12) * 1.01))
+
+                    # Logic
+                    item_buy_logic.append(dataframe['close'] < dataframe['ema_20'] * 0.97)
+                    item_buy_logic.append(dataframe['rsi_14'] < 32.0)
+                    item_buy_logic.append(dataframe['r_14'] < -90.0)
+                    item_buy_logic.append(dataframe['r_64'] < -80.0)
 
                 item_buy_logic.append(dataframe['volume'] > 0)
                 item_buy = reduce(lambda x, y: x & y, item_buy_logic)
