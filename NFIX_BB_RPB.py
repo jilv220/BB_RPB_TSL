@@ -121,8 +121,9 @@ class NFIX_BB_RPB(IStrategy):
     # Optimal timeframe for the strategy.
     timeframe = '5m'
     res_timeframe = 'none'
-    info_timeframe_1h = '1h'
     info_timeframe_1d = '1d'
+    info_timeframe_1h = '1h'
+    info_timeframe_15m = '15m'
 
     # BTC informative
     has_BTC_base_tf = False
@@ -257,17 +258,20 @@ class NFIX_BB_RPB(IStrategy):
         "buy_condition_33_enable": True,
         "buy_condition_34_enable": True,
         ## BB_RPB begin
-        "buy_condition_35_enable": True,        # False
+        "buy_condition_101_enable": True,        # False
+        "buy_condition_102_enable": True,
+        "buy_condition_103_enable": True,
+        ## quick mode
+        "buy_condition_104_enable": True,
+        "buy_condition_105_enable": True,
+        ## BB_RPB end
+        "buy_condition_35_enable": True,
         "buy_condition_36_enable": True,
         "buy_condition_37_enable": True,
-        ## quick mode
         "buy_condition_38_enable": True,
         "buy_condition_39_enable": True,
-        ## BB_RPB end
         "buy_condition_40_enable": True,
         "buy_condition_41_enable": True,
-        "buy_condition_42_enable": True,
-        "buy_condition_43_enable": True,
         #############
     }
 
@@ -1232,7 +1236,7 @@ class NFIX_BB_RPB(IStrategy):
             "close_under_pivot_type"    : "none", # pivot, sup1, sup2, sup3, res1, res2, res3
             "close_under_pivot_offset"  : 1.0
         },
-        35: {   # ewo2
+        101: {   # ewo2
             "ema_fast"                  : False,
             "ema_fast_len"              : "50",
             "ema_slow"                  : False,
@@ -1260,7 +1264,7 @@ class NFIX_BB_RPB(IStrategy):
             "close_under_pivot_type"    : "none", # pivot, sup1, sup2, sup3, res1, res2, res3
             "close_under_pivot_offset"  : 1.4
         },
-        36: {   # ewo
+        102: {   # ewo
             "ema_fast"                  : False,
             "ema_fast_len"              : "26",
             "ema_slow"                  : False,
@@ -1288,7 +1292,7 @@ class NFIX_BB_RPB(IStrategy):
             "close_under_pivot_type"    : "none", # pivot, sup1, sup2, sup3, res1, res2, res3
             "close_under_pivot_offset"  : 1.0
         },
-        37: {   # bb safe dump
+        103: {   # bb safe dump
             "ema_fast"                  : False,
             "ema_fast_len"              : "50",
             "ema_slow"                  : False,
@@ -1316,7 +1320,7 @@ class NFIX_BB_RPB(IStrategy):
             "close_under_pivot_type"    : "none", # pivot, sup1, sup2, sup3, res1, res2, res3
             "close_under_pivot_offset"  : 1.0
         },
-        38: {
+        104: {
             "ema_fast"                  : False,
             "ema_fast_len"              : "50",
             "ema_slow"                  : True,
@@ -1344,7 +1348,7 @@ class NFIX_BB_RPB(IStrategy):
             "close_under_pivot_type"    : "none", # pivot, sup1, sup2, sup3, res1, res2, res3
             "close_under_pivot_offset"  : 1.0
         },
-        39: {
+        105: {
             "ema_fast"                  : False,
             "ema_fast_len"              : "26",
             "ema_slow"                  : False,
@@ -1372,7 +1376,63 @@ class NFIX_BB_RPB(IStrategy):
             "close_under_pivot_type"    : "none", # pivot, sup1, sup2, sup3, res1, res2, res3
             "close_under_pivot_offset"  : 1.0
         },
-        40: {
+        35: {
+            "ema_fast"                  : False,
+            "ema_fast_len"              : "50",
+            "ema_slow"                  : False,
+            "ema_slow_len"              : "12",
+            "close_above_ema_fast"      : False,
+            "close_above_ema_fast_len"  : "200",
+            "close_above_ema_slow"      : False,
+            "close_above_ema_slow_len"  : "200",
+            "sma200_rising"             : False,
+            "sma200_rising_val"         : "30",
+            "sma200_1h_rising"          : False,
+            "sma200_1h_rising_val"      : "50",
+            "safe_dips_threshold_0"     : 0.028,
+            "safe_dips_threshold_2"     : 0.066,
+            "safe_dips_threshold_12"    : 0.32,
+            "safe_dips_threshold_144"   : None,
+            "safe_pump_6h_threshold"    : 0.5,
+            "safe_pump_12h_threshold"   : None,
+            "safe_pump_24h_threshold"   : None,
+            "safe_pump_36h_threshold"   : None,
+            "safe_pump_48h_threshold"   : None,
+            "btc_1h_not_downtrend"      : False,
+            "close_over_pivot_type"     : "none", # pivot, sup1, sup2, sup3, res1, res2, res3
+            "close_over_pivot_offset"   : 1.0,
+            "close_under_pivot_type"    : "none", # pivot, sup1, sup2, sup3, res1, res2, res3
+            "close_under_pivot_offset"  : 1.0
+        },
+        36: {
+            "ema_fast"                  : False,
+            "ema_fast_len"              : "50",
+            "ema_slow"                  : False,
+            "ema_slow_len"              : "12",
+            "close_above_ema_fast"      : False,
+            "close_above_ema_fast_len"  : "200",
+            "close_above_ema_slow"      : False,
+            "close_above_ema_slow_len"  : "200",
+            "sma200_rising"             : False,
+            "sma200_rising_val"         : "30",
+            "sma200_1h_rising"          : False,
+            "sma200_1h_rising_val"      : "50",
+            "safe_dips_threshold_0"     : 0.028,
+            "safe_dips_threshold_2"     : 0.09,
+            "safe_dips_threshold_12"    : None,
+            "safe_dips_threshold_144"   : None,
+            "safe_pump_6h_threshold"    : 0.5,
+            "safe_pump_12h_threshold"   : None,
+            "safe_pump_24h_threshold"   : None,
+            "safe_pump_36h_threshold"   : None,
+            "safe_pump_48h_threshold"   : None,
+            "btc_1h_not_downtrend"      : False,
+            "close_over_pivot_type"     : "none", # pivot, sup1, sup2, sup3, res1, res2, res3
+            "close_over_pivot_offset"   : 1.0,
+            "close_under_pivot_type"    : "none", # pivot, sup1, sup2, sup3, res1, res2, res3
+            "close_under_pivot_offset"  : 1.0
+        },
+        37: {
             "ema_fast"                  : False,
             "ema_fast_len"              : "50",
             "ema_slow"                  : False,
@@ -1400,7 +1460,7 @@ class NFIX_BB_RPB(IStrategy):
             "close_under_pivot_type"    : "res3", # pivot, sup1, sup2, sup3, res1, res2, res3
             "close_under_pivot_offset"  : 1.2
         },
-        41: {
+        38: {
             "ema_fast"                  : False,
             "ema_fast_len"              : "50",
             "ema_slow"                  : False,
@@ -1428,7 +1488,7 @@ class NFIX_BB_RPB(IStrategy):
             "close_under_pivot_type"    : "none", # pivot, sup1, sup2, sup3, res1, res2, res3
             "close_under_pivot_offset"  : 1.0
         },
-        42: {
+        39: {
             "ema_fast"                  : False,
             "ema_fast_len"              : "50",
             "ema_slow"                  : False,
@@ -1456,7 +1516,7 @@ class NFIX_BB_RPB(IStrategy):
             "close_under_pivot_type"    : "res3", # pivot, sup1, sup2, sup3, res1, res2, res3
             "close_under_pivot_offset"  : 1.25
         },
-        43: {
+        40: {
             "ema_fast"                  : False,
             "ema_fast_len"              : "50",
             "ema_slow"                  : False,
@@ -1479,6 +1539,34 @@ class NFIX_BB_RPB(IStrategy):
             "safe_pump_36h_threshold"   : None,
             "safe_pump_48h_threshold"   : None,
             "btc_1h_not_downtrend"      : False,
+            "close_over_pivot_type"     : "none", # pivot, sup1, sup2, sup3, res1, res2, res3
+            "close_over_pivot_offset"   : 1.0,
+            "close_under_pivot_type"    : "none", # pivot, sup1, sup2, sup3, res1, res2, res3
+            "close_under_pivot_offset"  : 1.0
+        },
+        41: {
+            "ema_fast"                  : False,
+            "ema_fast_len"              : "12",
+            "ema_slow"                  : False,
+            "ema_slow_len"              : "12",
+            "close_above_ema_fast"      : False,
+            "close_above_ema_fast_len"  : "200",
+            "close_above_ema_slow"      : False,
+            "close_above_ema_slow_len"  : "200",
+            "sma200_rising"             : False,
+            "sma200_rising_val"         : "42",
+            "sma200_1h_rising"          : False,
+            "sma200_1h_rising_val"      : "50",
+            "safe_dips_threshold_0"     : 0.018,
+            "safe_dips_threshold_2"     : 0.08,
+            "safe_dips_threshold_12"    : 0.2,
+            "safe_dips_threshold_144"   : None,
+            "safe_pump_6h_threshold"    : 0.5,
+            "safe_pump_12h_threshold"   : None,
+            "safe_pump_24h_threshold"   : None,
+            "safe_pump_36h_threshold"   : None,
+            "safe_pump_48h_threshold"   : 3.2,
+            "btc_1h_not_downtrend"      : True,
             "close_over_pivot_type"     : "none", # pivot, sup1, sup2, sup3, res1, res2, res3
             "close_over_pivot_offset"   : 1.0,
             "close_under_pivot_type"    : "none", # pivot, sup1, sup2, sup3, res1, res2, res3
@@ -3708,7 +3796,7 @@ class NFIX_BB_RPB(IStrategy):
         max_loss = ((trade.open_rate - trade.min_rate) / trade.min_rate)
 
         # Long mode
-        if all(c in ['31', '32', '33', '34'] for c in buy_tags):
+        if all(c in ['31', '32', '33', '34', '35', '36'] for c in buy_tags):
             sell, signal_name = self.sell_long_mode(current_profit, max_profit, max_loss, last_candle, previous_candle_1, previous_candle_2, previous_candle_3, previous_candle_4, previous_candle_5, trade, current_time, buy_tag)
             if sell and (signal_name is not None):
                 return f"{signal_name} ( {buy_tag})"
@@ -3716,7 +3804,7 @@ class NFIX_BB_RPB(IStrategy):
             return None
 
         # Quick sell mode
-        if all(c in ['empty', '38', '39'] for c in buy_tags):
+        if all(c in ['empty', '104', '105'] for c in buy_tags):
             sell, signal_name = self.sell_quick_mode(current_profit, max_profit, last_candle, previous_candle_1)
             if sell and (signal_name is not None):
                 return f"{signal_name} ( {buy_tag})"
@@ -3801,6 +3889,7 @@ class NFIX_BB_RPB(IStrategy):
         # Assign tf to each pair so they can be downloaded and cached for strategy.
         informative_pairs = [(pair, self.info_timeframe_1h) for pair in pairs]
         informative_pairs.extend([(pair, self.info_timeframe_1d) for pair in pairs])
+        informative_pairs.extend([(pair, self.info_timeframe_15m) for pair in pairs])
 
         if self.config['stake_currency'] in ['USDT','BUSD','USDC','DAI','TUSD','PAX','USD','EUR','GBP']:
             btc_info_pair = f"BTC/{self.config['stake_currency']}"
@@ -3808,8 +3897,10 @@ class NFIX_BB_RPB(IStrategy):
             btc_info_pair = "BTC/USDT"
 
         informative_pairs.append((btc_info_pair, self.timeframe))
-        informative_pairs.append((btc_info_pair, self.info_timeframe_1h))
         informative_pairs.append((btc_info_pair, self.info_timeframe_1d))
+        informative_pairs.append((btc_info_pair, self.info_timeframe_1h))
+        informative_pairs.append((btc_info_pair, self.info_timeframe_15m))
+
         return informative_pairs
 
     def informative_1d_indicators(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
@@ -3926,6 +4017,43 @@ class NFIX_BB_RPB(IStrategy):
         log.debug(f"[{metadata['pair']}] informative_1h_indicators took: {tok - tik:0.4f} seconds.")
 
         return informative_1h
+
+    def informative_15m_indicators(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
+        tik = time.perf_counter()
+        assert self.dp, "DataProvider is required for multiple timeframes."
+        # Get the informative pair
+        informative_15m = self.dp.get_pair_dataframe(pair=metadata['pair'], timeframe=self.info_timeframe_15m)
+
+        # RSI
+        informative_15m['rsi_14'] = ta.RSI(informative_15m, timeperiod=14)
+
+        # EMAs
+        informative_15m['ema_12'] = ta.EMA(informative_15m, timeperiod=12)
+        informative_15m['ema_20'] = ta.EMA(informative_15m, timeperiod=20)
+        informative_15m['ema_26'] = ta.EMA(informative_15m, timeperiod=25)
+        informative_15m['ema_50'] = ta.EMA(informative_15m, timeperiod=50)
+        informative_15m['ema_100'] = ta.EMA(informative_15m, timeperiod=100)
+        informative_15m['ema_200'] = ta.EMA(informative_15m, timeperiod=200)
+
+        # SMA
+        informative_15m['sma_200'] = ta.SMA(informative_15m, timeperiod=200)
+
+        # BB
+        bollinger = qtpylib.bollinger_bands(qtpylib.typical_price(informative_15m), window=20, stds=2)
+        informative_15m['bb20_2_low'] = bollinger['lower']
+        informative_15m['bb20_2_mid'] = bollinger['mid']
+        informative_15m['bb20_2_upp'] = bollinger['upper']
+
+        # CMF
+        informative_15m['cmf'] = chaikin_money_flow(informative_15m, 20)
+
+        # CTI
+        informative_15m['cti'] = pta.cti(informative_15m["close"], length=20)
+
+        tok = time.perf_counter()
+        log.debug(f"[{metadata['pair']}] informative_1h_indicators took: {tok - tik:0.4f} seconds.")
+
+        return informative_15m
 
     def normal_tf_indicators(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
         tik = time.perf_counter()
@@ -4177,6 +4305,11 @@ class NFIX_BB_RPB(IStrategy):
             drop_columns = [f"{s}_{self.info_timeframe_1h}" for s in ['date']]
             dataframe.drop(columns=dataframe.columns.intersection(drop_columns), inplace=True)
 
+        if self.info_timeframe_15m != 'none':
+            informative_15m = self.informative_15m_indicators(dataframe, metadata)
+            dataframe = merge_informative_pair(dataframe, informative_15m, self.timeframe, self.info_timeframe_15m, ffill=True)
+            drop_columns = [f"{s}_{self.info_timeframe_15m}" for s in ['date']]
+            dataframe.drop(columns=dataframe.columns.intersection(drop_columns), inplace=True)
 
         '''
         --> Resampled to another timeframe
@@ -4679,7 +4812,7 @@ class NFIX_BB_RPB(IStrategy):
                 ### BB_RPB backport
 
                 # ewo2 (need more protection)
-                elif index == 35:
+                elif index == 101:
 
                     # Non-Standard protections
                     item_buy_logic.append(dataframe['ema_200_1h'] > dataframe['ema_200_1h'].shift(12))
@@ -4695,7 +4828,7 @@ class NFIX_BB_RPB(IStrategy):
                     item_buy_logic.append(dataframe['rsi_14'] < 35)
 
                 # ewo
-                elif index == 36:
+                elif index == 102:
 
                     # Non-Standard protections
                     item_buy_logic.append(dataframe['roc_1h'] < 86)
@@ -4709,7 +4842,7 @@ class NFIX_BB_RPB(IStrategy):
                     item_buy_logic.append(dataframe['rsi_14'] < 35)
 
                 # BB safe dump
-                elif index == 37:
+                elif index == 103:
 
                     # Logic
                     item_buy_logic.append(dataframe['rmi_17'] < 49)
@@ -4721,7 +4854,7 @@ class NFIX_BB_RPB(IStrategy):
                     item_buy_logic.append(dataframe['close'] < dataframe['bb20_3_low'] * 0.999)
 
                 # NFI 33
-                elif index == 38:
+                elif index == 104:
 
                     # Logic
                     item_buy_logic.append(dataframe['close'] < dataframe['ema_13'] * 0.978)
@@ -4732,7 +4865,7 @@ class NFIX_BB_RPB(IStrategy):
                     item_buy_logic.append(dataframe['volume'] < dataframe['volume_mean_4'] * 2.5)
 
                 # NFI 38
-                elif index == 39:
+                elif index == 105:
 
                     # Logic
                     item_buy_logic.append(dataframe['pm'] > dataframe['pmax_thresh'])
@@ -4742,8 +4875,31 @@ class NFIX_BB_RPB(IStrategy):
                     item_buy_logic.append(dataframe['r_14'] < -97)
                     item_buy_logic.append(dataframe['crsi_1h'] > 0.5)
 
-                 # NFIX 37
-                elif index == 40:
+                # Condition #35 - Long mode. Local deep dip.
+                elif index == 35:
+                    # Non-Standard protections
+
+                    # Logic
+                    item_buy_logic.append(dataframe['close'] < dataframe['ema_25'] * 0.85)
+                    item_buy_logic.append(dataframe['close'] > dataframe['open'])
+                    item_buy_logic.append(dataframe['rsi_14'] < 46.0)
+                    item_buy_logic.append(dataframe['mfi'] < 36.0)
+                    item_buy_logic.append(dataframe['cti_1h'] > -0.85)
+
+                # Condition #36 - Long mode. Uptrend. Local dip.
+                elif index == 36:
+                    # Non-Standard protections
+                    item_buy_logic.append(dataframe['ema_200'] > (dataframe['ema_200'].shift(36) * 1.035))
+
+                    # Logic
+                    item_buy_logic.append(dataframe['close'] < dataframe['ema_20'] * 0.956)
+                    item_buy_logic.append(dataframe['rsi_14'] < 34.0)
+                    item_buy_logic.append(dataframe['r_64'] < -80.0)
+                    item_buy_logic.append(dataframe['cti'] < -0.5)
+                    item_buy_logic.append(dataframe['r_480_1h'] < -30.0)
+
+                # NFIX 37
+                elif index == 37:
                     # Non-Standard protections
                     item_buy_logic.append(dataframe['ema_200'] > (dataframe['ema_200'].shift(12) * 1.01))
 
@@ -4754,7 +4910,7 @@ class NFIX_BB_RPB(IStrategy):
                     item_buy_logic.append(dataframe['cmf_1h'] < 0.25)
 
                 # NFIX 38
-                elif index == 41:
+                elif index == 38:
                     # Non-Standard protections
                     item_buy_logic.append(dataframe['ema_200'] > (dataframe['ema_200'].shift(12) * 1.01))
 
@@ -4767,8 +4923,8 @@ class NFIX_BB_RPB(IStrategy):
                     item_buy_logic.append(dataframe['r_96'] < -50.0)
                     item_buy_logic.append(dataframe['r_480_1h'] < -1.0)
 
-                 # NFIX 39
-                elif index == 42:
+                # NFIX 39
+                elif index == 39:
                     # Non-Standard protections
                     item_buy_logic.append(dataframe['ema_200'] > (dataframe['ema_200'].shift(12) * 1.01))
                     item_buy_logic.append(dataframe['ema_200'] > (dataframe['ema_200'].shift(48) * 1.07))
@@ -4783,7 +4939,7 @@ class NFIX_BB_RPB(IStrategy):
                     item_buy_logic.append(dataframe['close'] > dataframe['ema_50'] * 0.925)
 
                 # NFIX 40
-                elif index == 43:
+                elif index == 40:
                     # Non-Standard protections
                     item_buy_logic.append(dataframe['ema_200'] > (dataframe['ema_200'].shift(12) * 1.01))
 
@@ -4792,6 +4948,17 @@ class NFIX_BB_RPB(IStrategy):
                     item_buy_logic.append(dataframe['rsi_14'] < 32.0)
                     item_buy_logic.append(dataframe['r_14'] < -90.0)
                     item_buy_logic.append(dataframe['r_64'] < -80.0)
+
+                # Condition #41 - 15m. Semi swing. Local dip. BTC not downtrend.
+                elif index == 41:
+                    # Non-Standard protections
+                    item_buy_logic.append(dataframe['ema_12_15m'] > dataframe['ema_200_1h'])
+
+                    # Logic
+                    item_buy_logic.append(dataframe['ema_26_15m'] > dataframe['ema_12_15m'])
+                    item_buy_logic.append((dataframe['ema_26_15m'] - dataframe['ema_12_15m']) > (dataframe['open_15m'] * 0.03))
+                    item_buy_logic.append((dataframe['ema_26_15m'].shift(3) - dataframe['ema_12_15m'].shift(3)) > (dataframe['open_15m'] / 100))
+                    item_buy_logic.append(dataframe['close_15m'] < (dataframe['bb20_2_low_15m'] * 0.99))
 
                 item_buy_logic.append(dataframe['volume'] > 0)
                 item_buy = reduce(lambda x, y: x & y, item_buy_logic)
