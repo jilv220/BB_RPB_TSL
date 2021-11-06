@@ -32,6 +32,21 @@ def SROC(dataframe, roclen=21, emalen=13, smooth=21):
 
     return sroc
 
+def range_percent_change(dataframe: DataFrame, method, length: int) -> float:
+        """
+        Rolling Percentage Change Maximum across interval.
+
+        :param dataframe: DataFrame The original OHLC dataframe
+        :param method: High to Low / Open to Close
+        :param length: int The length to look back
+        """
+        if method == 'HL':
+            return (dataframe['high'].rolling(length).max() - dataframe['low'].rolling(length).min()) / dataframe['low'].rolling(length).min()
+        elif method == 'OC':
+            return (dataframe['open'].rolling(length).max() - dataframe['close'].rolling(length).min()) / dataframe['close'].rolling(length).min()
+        else:
+            raise ValueError(f"Method {method} not defined!")
+
 # Williams %R
 def williams_r(dataframe: DataFrame, period: int = 14) -> Series:
     """Williams %R, or just %R, is a technical analysis oscillator showing the current closing price in relation to the high and low
@@ -126,6 +141,11 @@ class BB_RPB_TSL(IStrategy):
         "buy_ema_diff_local_dip": 0.024,
         "buy_ema_high_local_dip": 1.014,
         "buy_rsi_local_dip": 21,
+        ##
+        "buy_r_deadfish_bb_factor": 1.014,
+        "buy_r_deadfish_bb_width": 0.299,
+        "buy_r_deadfish_ema": 1.054,
+        "buy_r_deadfish_volume_factor": 1.59,
     }
 
     # sell space
@@ -192,12 +212,19 @@ class BB_RPB_TSL(IStrategy):
     buy_ema_low = DecimalParameter(0.9, 0.99, default=0.942 , optimize = is_optimize_ewo)
     buy_ema_high = DecimalParameter(0.95, 1.2, default=1.084 , optimize = is_optimize_ewo)
 
-    is_optimize_ewo_2 = True
-    buy_rsi_fast_ewo_2 = IntParameter(35, 50, default=45, optimize = is_optimize_ewo_2)
-    buy_rsi_ewo_2 = IntParameter(15, 35, default=35, optimize = is_optimize_ewo_2)
-    buy_ema_low_2 = DecimalParameter(0.96, 0.978, default=0.96 , optimize = is_optimize_ewo_2)
-    buy_ema_high_2 = DecimalParameter(1.05, 1.2, default=1.09 , optimize = is_optimize_ewo_2)
-    buy_ewo_high_2 = DecimalParameter(2, 12, default=3.553, optimize = is_optimize_ewo_2)
+    is_optimize_ewo_2 = False
+    buy_rsi_fast_ewo_2 = IntParameter(35, 50, default=45, optimize = False)
+    buy_rsi_ewo_2 = IntParameter(15, 35, default=35, optimize = False)
+    buy_ema_low_2 = DecimalParameter(0.90, 0.99, default=0.970 , optimize = False)
+    buy_ema_high_2 = DecimalParameter(1.0, 1.2, default=1.087 , optimize = False)
+    buy_ewo_high_2 = DecimalParameter(2, 12, default=4.179, optimize = False)
+    buy_ema_low_2_1h = DecimalParameter(0.92, 1.2, default=1.087 , optimize = is_optimize_ewo_2)
+
+    is_optimize_r_deadfish = True
+    buy_r_deadfish_ema = DecimalParameter(0.90, 1.2, default=1.087 , optimize = is_optimize_r_deadfish)
+    buy_r_deadfish_bb_width = DecimalParameter(0.03, 0.75, default=0.05 , optimize = is_optimize_r_deadfish)
+    buy_r_deadfish_bb_factor = DecimalParameter(0.90, 1.2, default=1.0 , optimize = is_optimize_r_deadfish)
+    buy_r_deadfish_volume_factor = DecimalParameter(1, 2.5, default=1.0 , optimize = is_optimize_r_deadfish)
 
     is_optimize_btc_safe = False
     buy_btc_safe = IntParameter(-300, 50, default=-200, optimize = is_optimize_btc_safe)
@@ -222,7 +249,7 @@ class BB_RPB_TSL(IStrategy):
     sell_ema_close_delta = DecimalParameter(0.022, 0.027, default= 0.024, optimize = is_optimize_sell_stoploss)
     sell_ema = DecimalParameter(0.97, 0.99, default=0.987 , optimize = is_optimize_sell_stoploss)
 
-    is_optimize_deadfish = True
+    is_optimize_deadfish = False
     sell_deadfish_bb_width = DecimalParameter(0.03, 0.75, default=0.05 , optimize = is_optimize_deadfish)
     sell_deadfish_profit = DecimalParameter(-0.10, -0.05, default=-0.05 , optimize = False)
     sell_deadfish_bb_factor = DecimalParameter(0.90, 1.20, default=1.0 , optimize = is_optimize_deadfish)
@@ -252,6 +279,7 @@ class BB_RPB_TSL(IStrategy):
         informative_1h = self.dp.get_pair_dataframe(pair=metadata['pair'], timeframe=self.inf_1h)
 
         # EMA
+        informative_1h['ema_8'] = ta.EMA(informative_1h, timeperiod=8)
         informative_1h['ema_50'] = ta.EMA(informative_1h, timeperiod=50)
         informative_1h['ema_100'] = ta.EMA(informative_1h, timeperiod=100)
         informative_1h['ema_200'] = ta.EMA(informative_1h, timeperiod=200)
@@ -289,6 +317,13 @@ class BB_RPB_TSL(IStrategy):
 
         # CMF
         informative_1h['cmf'] = chaikin_money_flow(informative_1h, 20)
+
+        # Pump protections
+        #informative_1h['hl_pct_change_48'] = range_percent_change(informative_1h, 'HL', length=48)
+        #informative_1h['hl_pct_change_36'] = range_percent_change(informative_1h, 'HL', length=36)
+        #informative_1h['hl_pct_change_24'] = range_percent_change(informative_1h, 'HL', length=24)
+        #informative_1h['hl_pct_change_12'] = range_percent_change(informative_1h, 'HL', length=12)
+        #informative_1h['hl_pct_change_6'] = range_percent_change(informative_1h, 'HL', length=6)
 
         return informative_1h
 
@@ -466,6 +501,7 @@ class BB_RPB_TSL(IStrategy):
         dataframe['ema_20'] = ta.EMA(dataframe, timeperiod=16)
         dataframe['ema_26'] = ta.EMA(dataframe, timeperiod=26)
         dataframe['ema_50'] = ta.EMA(dataframe, timeperiod=50)
+        dataframe['ema_100'] = ta.EMA(dataframe, timeperiod=100)
         dataframe['ema_200'] = ta.EMA(dataframe, timeperiod=200)
 
         # RSI
@@ -475,12 +511,6 @@ class BB_RPB_TSL(IStrategy):
 
         # Elliot
         dataframe['EWO'] = EWO(dataframe, 50, 200)
-
-        # Cofi
-        stoch_fast = ta.STOCHF(dataframe, 5, 3, 0, 3, 0)
-        dataframe['fastd'] = stoch_fast['fastd']
-        dataframe['fastk'] = stoch_fast['fastk']
-        dataframe['adx'] = ta.ADX(dataframe)
 
         # Williams %R
         dataframe['r_14'] = williams_r(dataframe, period=14)
@@ -503,9 +533,6 @@ class BB_RPB_TSL(IStrategy):
         dataframe['pm'], dataframe['pmx'] = pmax(heikinashi, MAtype=1, length=9, multiplier=27, period=10, src=3)
         dataframe['source'] = (dataframe['high'] + dataframe['low'] + dataframe['open'] + dataframe['close'])/4
         dataframe['pmax_thresh'] = ta.EMA(dataframe['source'], timeperiod=9)
-
-        # SROC
-        dataframe["sroc"] = SROC(dataframe)
 
         # MOMDIV
         mom = momdiv(dataframe)
@@ -574,7 +601,6 @@ class BB_RPB_TSL(IStrategy):
                 (dataframe['rsi'] < self.buy_rsi.value)
             )
 
-
         is_ewo_2 = (
                 (dataframe['ema_200_1h'] > dataframe['ema_200_1h'].shift(12)) &
                 (dataframe['ema_200_1h'].shift(12) > dataframe['ema_200_1h'].shift(24)) &
@@ -582,8 +608,16 @@ class BB_RPB_TSL(IStrategy):
                 (dataframe['close'] < dataframe['ema_8'] * self.buy_ema_low_2.value) &
                 (dataframe['EWO'] > self.buy_ewo_high_2.value) &
                 (dataframe['close'] < dataframe['ema_16'] * self.buy_ema_high_2.value) &
-                (dataframe['rsi'] < self.buy_rsi_ewo_2.value)
+                (dataframe['rsi'] < self.buy_rsi_ewo_2.value) &
+                (dataframe['close'] < dataframe['ema_8_1h'] * self.buy_ema_low_2_1h.value)
             )
+
+        is_r_deadfish = (                                                                               # reverse deadfish
+                (dataframe['ema_100'] < dataframe['ema_200'] * self.buy_r_deadfish_ema.value) &
+                (dataframe['bb_width'] > self.buy_r_deadfish_bb_width.value) &
+                (dataframe['close'] < dataframe['bb_middleband2'] * self.buy_r_deadfish_bb_factor.value) &
+                (dataframe['volume_mean_12'] > dataframe['volume_mean_24'] * self.buy_r_deadfish_volume_factor.value)
+        )
 
         # NFI quick mode
         is_nfi_13 = (
@@ -644,6 +678,9 @@ class BB_RPB_TSL(IStrategy):
 
         conditions.append(is_ewo_2)                                                # ~3.47 / 77.4% / 24.01%      D
         dataframe.loc[is_ewo_2, 'buy_tag'] += 'ewo2 '
+
+        conditions.append(is_r_deadfish)                                           # ~0.99 / 86.9% / 21.93%      D
+        dataframe.loc[is_r_deadfish, 'buy_tag'] += 'r_deadfish '
 
         conditions.append(is_nfi_13)                                               # ~0.4 / 100%                 D
         dataframe.loc[is_nfi_13, 'buy_tag'] += 'nfi_13 '
