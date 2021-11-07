@@ -16,6 +16,10 @@ from functools import reduce
 from technical.indicators import RMI, zema, ichimoku
 
 # --------------------------------
+def ha_typical_price(bars):
+    res = (bars['ha_high'] + bars['ha_low'] + bars['ha_close']) / 3.
+    return Series(index=bars.index, data=res)
+
 def EWO(dataframe, ema_length=5, ema2_length=35):
     df = dataframe.copy()
     ema1 = ta.EMA(df, timeperiod=ema_length)
@@ -97,7 +101,7 @@ class BB_RPB_TSL(IStrategy):
         I modified it to better suit my taste and added Hyperopt for this strategy.
     '''
 
-    # (1) Use sell signal
+    # (1) sell rework
 
     ##########################################################################
 
@@ -146,6 +150,12 @@ class BB_RPB_TSL(IStrategy):
         "buy_r_deadfish_bb_width": 0.299,
         "buy_r_deadfish_ema": 1.054,
         "buy_r_deadfish_volume_factor": 1.59,
+        ##
+        "buy_clucha_bbdelta_close": 0.049,
+        "buy_clucha_bbdelta_tail": 1.146,
+        "buy_clucha_close_bblower": 0.018,
+        "buy_clucha_closedelta_close": 0.017,
+        "buy_clucha_rocr_1h": 0.526,
     }
 
     # sell space
@@ -220,11 +230,18 @@ class BB_RPB_TSL(IStrategy):
     buy_ewo_high_2 = DecimalParameter(2, 12, default=4.179, optimize = False)
     buy_ema_low_2_1h = DecimalParameter(0.92, 1.2, default=1.087 , optimize = is_optimize_ewo_2)
 
-    is_optimize_r_deadfish = True
+    is_optimize_r_deadfish = False
     buy_r_deadfish_ema = DecimalParameter(0.90, 1.2, default=1.087 , optimize = is_optimize_r_deadfish)
     buy_r_deadfish_bb_width = DecimalParameter(0.03, 0.75, default=0.05 , optimize = is_optimize_r_deadfish)
     buy_r_deadfish_bb_factor = DecimalParameter(0.90, 1.2, default=1.0 , optimize = is_optimize_r_deadfish)
     buy_r_deadfish_volume_factor = DecimalParameter(1, 2.5, default=1.0 , optimize = is_optimize_r_deadfish)
+
+    is_optimize_clucha = False
+    buy_clucha_bbdelta_close = DecimalParameter(0.01,0.05, default=0.02206, optimize=is_optimize_clucha)
+    buy_clucha_bbdelta_tail = DecimalParameter(0.7, 1.2, default=1.02515, optimize=is_optimize_clucha)
+    buy_clucha_close_bblower = DecimalParameter(0.001, 0.05, default=0.03669, optimize=is_optimize_clucha)
+    buy_clucha_closedelta_close = DecimalParameter(0.001, 0.05, default=0.04401, optimize=is_optimize_clucha)
+    buy_clucha_rocr_1h = DecimalParameter(0.1, 1.0, default=0.47782, optimize=is_optimize_clucha)
 
     is_optimize_btc_safe = False
     buy_btc_safe = IntParameter(-300, 50, default=-200, optimize = is_optimize_btc_safe)
@@ -238,7 +255,7 @@ class BB_RPB_TSL(IStrategy):
     ## Slippage params
 
     is_optimize_slip = False
-    max_slip = DecimalParameter(0.33, 0.80, default=0.33, decimals=3, space='buy', optimize=is_optimize_slip , load=True)
+    max_slip = DecimalParameter(0.33, 0.80, default=0.33, decimals=3, optimize=is_optimize_slip , load=True)
 
     ## Sell params
 
@@ -254,14 +271,6 @@ class BB_RPB_TSL(IStrategy):
     sell_deadfish_profit = DecimalParameter(-0.10, -0.05, default=-0.05 , optimize = False)
     sell_deadfish_bb_factor = DecimalParameter(0.90, 1.20, default=1.0 , optimize = is_optimize_deadfish)
     sell_deadfish_volume_factor = DecimalParameter(1, 2.5, default=1.0 , optimize = is_optimize_deadfish)
-
-    ## Trailing params
-
-    is_optimize_trailing = False
-    p_target_1 = DecimalParameter(0.05, 0.199, default=0.05, decimals=3, space='sell', optimize=is_optimize_trailing , load=True)
-    p_target_2 = DecimalParameter(0.03, 0.099, default=0.03, decimals=3, space='sell', optimize=is_optimize_trailing , load=True)
-    p_target_3 = DecimalParameter(0.02, 0.059, default=0.02, decimals=3, space='sell', optimize=is_optimize_trailing , load=True)
-    p_target_4 = DecimalParameter(0.01, 0.029, default=0.01, decimals=3, space='sell', optimize=is_optimize_trailing , load=True)
 
     ############################################################################
 
@@ -318,6 +327,11 @@ class BB_RPB_TSL(IStrategy):
         # CMF
         informative_1h['cmf'] = chaikin_money_flow(informative_1h, 20)
 
+        # Heikin Ashi
+        inf_heikinashi = qtpylib.heikinashi(informative_1h)
+        informative_1h['ha_close'] = inf_heikinashi['close']
+        informative_1h['rocr'] = ta.ROCR(informative_1h['ha_close'], timeperiod=168)
+
         # Pump protections
         #informative_1h['hl_pct_change_48'] = range_percent_change(informative_1h, 'HL', length=48)
         #informative_1h['hl_pct_change_36'] = range_percent_change(informative_1h, 'HL', length=36)
@@ -336,13 +350,15 @@ class BB_RPB_TSL(IStrategy):
         sl_new = 1
 
         if (current_profit > 0.2):
-            sl_new = self.p_target_1.value
+            sl_new = 0.05
         elif (current_profit > 0.1):
-            sl_new = self.p_target_2.value
+            sl_new = 0.03
         elif (current_profit > 0.06):
-            sl_new = self.p_target_3.value
+            sl_new = 0.02
         elif (current_profit > 0.03):
-            sl_new = self.p_target_4.value
+            sl_new = 0.015
+        elif (current_profit > 0.015):
+            sl_new = 0.0075
 
         return sl_new
 
@@ -353,6 +369,8 @@ class BB_RPB_TSL(IStrategy):
         dataframe, _ = self.dp.get_analyzed_dataframe(pair, self.timeframe)
 
         last_candle = dataframe.iloc[-1]
+        previous_candle_1 = dataframe.iloc[-2]
+
         max_profit = ((trade.max_rate - trade.open_rate) / trade.open_rate)
         max_loss = ((trade.open_rate - trade.min_rate) / trade.min_rate)
 
@@ -384,6 +402,13 @@ class BB_RPB_TSL(IStrategy):
             elif (max_profit > (current_profit + 0.01)) and (last_candle['rsi'] < 44.0) and (last_candle['cmf'] < -0.25):
                 return 'sell_profit_t_1_12'
 
+        if (last_candle['momdiv_sell_1h'] == True) and (current_profit > 0.02):
+            return 'signal_profit_q_momdiv_1h'
+        if (last_candle['momdiv_sell'] == True) and (current_profit > 0.02):
+            return 'signal_profit_q_momdiv'
+        if (last_candle['momdiv_coh'] == True) and (current_profit > 0.02):
+            return 'signal_profit_q_momdiv_coh'
+
         # sell bear
         if last_candle['close'] < last_candle['ema_200']:
             if 0.02 > current_profit >= 0.01:
@@ -398,6 +423,21 @@ class BB_RPB_TSL(IStrategy):
 
         if (0.06 > current_profit > 0.02) and (last_candle['cti'] > 0.95):
             return 'signal_profit_q_2'
+
+        if (0.06 > current_profit > 0.02) and (last_candle['pm'] <= last_candle['pmax_thresh']) and (last_candle['close'] > last_candle['sma_21'] * 1.1):
+            return True, 'signal_profit_q_pmax_bull'
+        if (0.06 > current_profit > 0.02) and (last_candle['pm'] > last_candle['pmax_thresh']) and (last_candle['close'] > last_candle['sma_21'] * 1.016):
+            return True, 'signal_profit_q_pmax_bear'
+
+        if (
+                (current_profit < -0.05)
+                and (last_candle['close'] < last_candle['ema_200'] * 0.988)
+                and (last_candle['cmf'] < -0.046)
+                and (((last_candle['ema_200'] - last_candle['close']) / last_candle['close']) < 0.022)
+                and last_candle['rsi'] > previous_candle_1['rsi']
+                and (last_candle['rsi'] > (last_candle['rsi_1h'] + 10.0))
+        ):
+            return 'sell_stoploss_u_e_1'
 
         # stoploss - deadfish
         if (    (current_profit < self.sell_deadfish_profit.value)
@@ -528,6 +568,23 @@ class BB_RPB_TSL(IStrategy):
 
         # Heiken Ashi
         heikinashi = qtpylib.heikinashi(dataframe)
+        dataframe['ha_open'] = heikinashi['open']
+        dataframe['ha_close'] = heikinashi['close']
+        dataframe['ha_high'] = heikinashi['high']
+        dataframe['ha_low'] = heikinashi['low']
+
+        ## BB 40
+        bollinger2_40 = qtpylib.bollinger_bands(ha_typical_price(dataframe), window=40, stds=2)
+        dataframe['bb_lowerband2_40'] = bollinger2_40['lower']
+        dataframe['bb_middleband2_40'] = bollinger2_40['mid']
+        dataframe['bb_upperband2_40'] = bollinger2_40['upper']
+
+        # ClucHA
+        dataframe['bb_delta_cluc'] = (dataframe['bb_middleband2_40'] - dataframe['bb_lowerband2_40']).abs()
+        dataframe['ha_closedelta'] = (dataframe['ha_close'] - dataframe['ha_close'].shift()).abs()
+        dataframe['tail'] = (dataframe['ha_close'] - dataframe['ha_low']).abs()
+        dataframe['ema_slow'] = ta.EMA(dataframe['ha_close'], timeperiod=50)
+        dataframe['rocr'] = ta.ROCR(dataframe['ha_close'], timeperiod=28)
 
         # Profit Maximizer - PMAX
         dataframe['pm'], dataframe['pmx'] = pmax(heikinashi, MAtype=1, length=9, multiplier=27, period=10, src=3)
@@ -619,6 +676,25 @@ class BB_RPB_TSL(IStrategy):
                 (dataframe['volume_mean_12'] > dataframe['volume_mean_24'] * self.buy_r_deadfish_volume_factor.value)
         )
 
+        is_clucHA = (
+            (dataframe['rocr_1h'] > self.buy_clucha_rocr_1h.value ) &
+            (
+                (
+                    (dataframe['bb_lowerband2_40'].shift() > 0) &
+                    (dataframe['bb_delta_cluc'] > dataframe['ha_close'] * self.buy_clucha_bbdelta_close.value) &
+                    (dataframe['ha_closedelta'] > dataframe['ha_close'] * self.buy_clucha_closedelta_close.value) &
+                    (dataframe['tail'] < dataframe['bb_delta_cluc'] * self.buy_clucha_bbdelta_tail.value) &
+                    (dataframe['ha_close'] < dataframe['bb_lowerband2_40'].shift()) &
+                    (dataframe['ha_close'] < dataframe['ha_close'].shift())
+                )
+                |
+                (
+                    (dataframe['ha_close'] < dataframe['ema_slow']) &
+                    (dataframe['ha_close'] < self.buy_clucha_close_bblower.value * dataframe['bb_lowerband2'])
+                )
+            )
+        )
+
         # NFI quick mode
         is_nfi_13 = (
                 (dataframe['ema_50_1h'] > dataframe['ema_100_1h']) &
@@ -682,6 +758,9 @@ class BB_RPB_TSL(IStrategy):
         conditions.append(is_r_deadfish)                                           # ~0.99 / 86.9% / 21.93%      D
         dataframe.loc[is_r_deadfish, 'buy_tag'] += 'r_deadfish '
 
+        conditions.append(is_clucHA)                                               # ~7.34 / 86.6% / 100.11%     F
+        dataframe.loc[is_clucHA, 'buy_tag'] += 'clucHA '
+
         conditions.append(is_nfi_13)                                               # ~0.4 / 100%                 D
         dataframe.loc[is_nfi_13, 'buy_tag'] += 'nfi_13 '
 
@@ -743,7 +822,7 @@ class BB_RPB_TSL(IStrategy):
                 &
                 (dataframe['volume'] > 0) # Make sure Volume is not 0
             ),
-            'sell'] = 1
+            'sell'] = 0
 
         return dataframe
 
