@@ -224,8 +224,8 @@ class NFIX_BB_RPB(IStrategy):
         #############
         # Enable/Disable conditions
         "buy_condition_1_enable": True,            # ~0.11 / 90% / 15.01% / 1:30:00 (W) / ?
-        "buy_condition_2_enable": False,            # ~0.06 / 90.9% / 12.54% / 10:12:00 (W) / F
-        "buy_condition_3_enable": False,            # ~0.10 / 100% / 0% / 4:40:00 (W) / F
+        "buy_condition_2_enable": True,            # ~0.06 / 90.9% / 12.54% / 10:12:00 (W) / F
+        "buy_condition_3_enable": True,            # ~0.10 / 100% / 0% / 4:40:00 (W) / F
         "buy_condition_4_enable": True,            # ~0.03 / 100% / 0% / 1:42:00 (W) / ?
         "buy_condition_5_enable": True,             # ~0.31 / 100% / 0% / 1:30:00 (W) / S
         "buy_condition_6_enable": True,            # ~0.08 / 100% / 0% / 1:35:00 (W) / ?
@@ -237,9 +237,9 @@ class NFIX_BB_RPB(IStrategy):
         "buy_condition_12_enable": True,           # ~0.09 / 100% / 0% / 0:34:00 (W) / S
         "buy_condition_13_enable": True,           # ~0.10 / 94% / 21.08% / 1:19:00 (W) / S
         "buy_condition_14_enable": True,           # ~0.08 / 100% / 0% / 0:50:00 (W) / S
-        "buy_condition_15_enable": False,           # ~0.07 / 92.3% / 11.71% / 4:57:00 (W) / F
+        "buy_condition_15_enable": True,           # ~0.07 / 92.3% / 11.71% / 4:57:00 (W) / F
         "buy_condition_16_enable": True,           # ~0.01 / 100% / 0% / 1:55:00 (W) / F
-        "buy_condition_17_enable": False,           # ~0.11 / 94.7% / 10.94% / 4:11:00 (W) / F
+        "buy_condition_17_enable": True,           # ~0.11 / 94.7% / 10.94% / 4:11:00 (W) / F
         "buy_condition_18_enable": True,           # ~0.12 / 95.5% / 8.69% / 0:54:00 (W) / S
         "buy_condition_19_enable": True,
         "buy_condition_20_enable": True,
@@ -279,7 +279,7 @@ class NFIX_BB_RPB(IStrategy):
         "buy_condition_45_enable": True,
         "buy_condition_46_enable": True,
         "buy_condition_47_enable": True,
-        "buy_condition_48_enable": False,           # ~0.24 / 95.2% / 24.67% / 4:37:00 (W) / F
+        "buy_condition_48_enable": True,           # ~0.24 / 95.2% / 24.67% / 4:37:00 (W) / F
         "buy_condition_49_enable": True,            # ~0.49 / 97.7% / 16.71% / 1:39:00 (W) / S
         #############
     }
