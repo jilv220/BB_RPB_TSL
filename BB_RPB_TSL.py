@@ -157,6 +157,14 @@ class BB_RPB_TSL(IStrategy):
         "buy_clucha_closedelta_close": 0.017,
         "buy_clucha_rocr_1h": 0.526,
         ##
+        "buy_adx": 13,
+        "buy_cofi_39_r14": -85.016,
+        "buy_cofi_cti": -0.892,
+        "buy_ema_cofi": 1.147,
+        "buy_ewo_high": 8.594,
+        "buy_fastd": 28,
+        "buy_fastk": 39,
+        ##
         "buy_nfix_39_cti": -0.105,
         "buy_nfix_39_r14": -81.827,
     }
@@ -233,7 +241,7 @@ class BB_RPB_TSL(IStrategy):
     buy_ema_high_2 = DecimalParameter(0.90, 1.2, default=1.087 , optimize = is_optimize_ewo_2)
     buy_ewo_high_2 = DecimalParameter(2, 12, default=4.179, optimize = is_optimize_ewo_2)
 
-    is_optimize_ewo2_protection = True
+    is_optimize_ewo2_protection = False
     buy_ewo2_cti = DecimalParameter(-0.9, -0.0, default=-0.5 , optimize = is_optimize_ewo2_protection)
     buy_ewo2_r14 = DecimalParameter(-100, -44, default=-60 , optimize = is_optimize_ewo2_protection)
 
@@ -253,6 +261,17 @@ class BB_RPB_TSL(IStrategy):
     buy_clucha_close_bblower = DecimalParameter(0.001, 0.05, default=0.03669, optimize=is_optimize_clucha)
     buy_clucha_closedelta_close = DecimalParameter(0.001, 0.05, default=0.04401, optimize=is_optimize_clucha)
     buy_clucha_rocr_1h = DecimalParameter(0.1, 1.0, default=0.47782, optimize=is_optimize_clucha)
+
+    is_optimize_cofi = False
+    buy_ema_cofi = DecimalParameter(0.94, 1.2, default=0.97 , optimize = is_optimize_cofi)
+    buy_fastk = IntParameter(0, 40, default=20, optimize = is_optimize_cofi)
+    buy_fastd = IntParameter(0, 40, default=20, optimize = is_optimize_cofi)
+    buy_adx = IntParameter(0, 30, default=30, optimize = is_optimize_cofi)
+    buy_ewo_high = DecimalParameter(2, 12, default=3.553, optimize = is_optimize_cofi)
+
+    is_optimize_cofi_protection = False
+    buy_cofi_cti = DecimalParameter(-0.9, -0.0, default=-0.5 , optimize = is_optimize_cofi_protection)
+    buy_cofi_39_r14 = DecimalParameter(-100, -44, default=-60 , optimize = is_optimize_cofi_protection)
 
     is_optimize_nfix_39_protection = False
     buy_nfix_39_cti = DecimalParameter(-0.9, -0.0, default=-0.5 , optimize = is_optimize_nfix_39_protection)
@@ -568,6 +587,7 @@ class BB_RPB_TSL(IStrategy):
         # Williams %R
         dataframe['r_14'] = williams_r(dataframe, period=14)
         dataframe['r_32'] = williams_r(dataframe, period=32)
+        dataframe['r_64'] = williams_r(dataframe, period=64)
         dataframe['r_96'] = williams_r(dataframe, period=96)
         dataframe['r_480'] = williams_r(dataframe, period=480)
 
@@ -598,6 +618,12 @@ class BB_RPB_TSL(IStrategy):
         dataframe['tail'] = (dataframe['ha_close'] - dataframe['ha_low']).abs()
         dataframe['ema_slow'] = ta.EMA(dataframe['ha_close'], timeperiod=50)
         dataframe['rocr'] = ta.ROCR(dataframe['ha_close'], timeperiod=28)
+
+        # Cofi
+        stoch_fast = ta.STOCHF(dataframe, 5, 3, 0, 3, 0)
+        dataframe['fastd'] = stoch_fast['fastd']
+        dataframe['fastk'] = stoch_fast['fastk']
+        dataframe['adx'] = ta.ADX(dataframe)
 
         # Profit Maximizer - PMAX
         dataframe['pm'], dataframe['pmx'] = pmax(heikinashi, MAtype=1, length=9, multiplier=27, period=10, src=3)
@@ -709,6 +735,17 @@ class BB_RPB_TSL(IStrategy):
                 )
             )
 
+        is_cofi = (
+                (dataframe['open'] < dataframe['ema_8'] * self.buy_ema_cofi.value) &
+                (qtpylib.crossed_above(dataframe['fastk'], dataframe['fastd'])) &
+                (dataframe['fastk'] < self.buy_fastk.value) &
+                (dataframe['fastd'] < self.buy_fastd.value) &
+                (dataframe['adx'] > self.buy_adx.value) &
+                (dataframe['EWO'] > self.buy_ewo_high.value) &
+                (dataframe['cti'] < self.buy_cofi_cti.value) &
+                (dataframe['r_14'] < self.buy_cofi_39_r14.value)
+            )
+
         # NFI quick mode
         is_nfi_13 = (
                 (dataframe['ema_50_1h'] > dataframe['ema_100_1h']) &
@@ -755,7 +792,6 @@ class BB_RPB_TSL(IStrategy):
             )
 
         is_nfix_49 = (
-
                 (dataframe['ema_26'].shift(3) > dataframe['ema_12'].shift(3)) &
                 (dataframe['ema_26'].shift(3) - dataframe['ema_12'].shift(3) > dataframe['open'].shift(3) * 0.032) &
                 (dataframe['ema_26'].shift(9) - dataframe['ema_12'].shift(9) > dataframe['open'].shift(3) / 100) &
@@ -795,6 +831,9 @@ class BB_RPB_TSL(IStrategy):
 
         conditions.append(is_clucHA)                                               # ~7.34 / 86.6% / 100.11%     F
         dataframe.loc[is_clucHA, 'buy_tag'] += 'clucHA '
+
+        conditions.append(is_cofi)                                                 # ~0.4 / 94.4% / 9.59%        D
+        dataframe.loc[is_cofi, 'buy_tag'] += 'cofi '
 
         conditions.append(is_nfi_13)                                               # ~0.4 / 100%                 D
         dataframe.loc[is_nfi_13, 'buy_tag'] += 'nfi_13 '
