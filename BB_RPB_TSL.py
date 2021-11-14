@@ -158,12 +158,17 @@ class BB_RPB_TSL(IStrategy):
         "buy_clucha_rocr_1h": 0.526,
         ##
         "buy_adx": 13,
-        "buy_cofi_39_r14": -85.016,
+        "buy_cofi_r14": -85.016,
         "buy_cofi_cti": -0.892,
         "buy_ema_cofi": 1.147,
         "buy_ewo_high": 8.594,
         "buy_fastd": 28,
         "buy_fastk": 39,
+        ##
+        "buy_gumbo_ema": 1.121,
+        "buy_gumbo_ewo_low": -9.442,
+        "buy_gumbo_cti": -0.374,
+        "buy_gumbo_r14": -51.971,
         ##
         "buy_nfix_39_cti": -0.105,
         "buy_nfix_39_r14": -81.827,
@@ -271,7 +276,15 @@ class BB_RPB_TSL(IStrategy):
 
     is_optimize_cofi_protection = False
     buy_cofi_cti = DecimalParameter(-0.9, -0.0, default=-0.5 , optimize = is_optimize_cofi_protection)
-    buy_cofi_39_r14 = DecimalParameter(-100, -44, default=-60 , optimize = is_optimize_cofi_protection)
+    buy_cofi_r14 = DecimalParameter(-100, -44, default=-60 , optimize = is_optimize_cofi_protection)
+
+    is_optimize_gumbo = False
+    buy_gumbo_ema = DecimalParameter(0.9, 1.2, default=0.97 , optimize = is_optimize_gumbo)
+    buy_gumbo_ewo_low = DecimalParameter(-12.0, 5, default=-5.585, optimize = is_optimize_gumbo)
+
+    is_optimize_gumbo_protection = True
+    buy_gumbo_cti = DecimalParameter(-0.9, -0.0, default=-0.5 , optimize = is_optimize_gumbo_protection)
+    buy_gumbo_r14 = DecimalParameter(-100, -44, default=-60 , optimize = is_optimize_gumbo_protection)
 
     is_optimize_nfix_39_protection = False
     buy_nfix_39_cti = DecimalParameter(-0.9, -0.0, default=-0.5 , optimize = is_optimize_nfix_39_protection)
@@ -366,6 +379,9 @@ class BB_RPB_TSL(IStrategy):
         informative_1h['ha_close'] = inf_heikinashi['close']
         informative_1h['rocr'] = ta.ROCR(informative_1h['ha_close'], timeperiod=168)
 
+        # T3 Average
+        informative_1h['T3'] = T3(informative_1h)
+
         # Pump protections
         #informative_1h['hl_pct_change_48'] = range_percent_change(informative_1h, 'HL', length=48)
         #informative_1h['hl_pct_change_36'] = range_percent_change(informative_1h, 'HL', length=36)
@@ -406,60 +422,65 @@ class BB_RPB_TSL(IStrategy):
         max_profit = ((trade.max_rate - trade.open_rate) / trade.open_rate)
         max_loss = ((trade.open_rate - trade.min_rate) / trade.min_rate)
 
+        buy_tag = 'empty'
+        if hasattr(trade, 'buy_tag') and trade.buy_tag is not None:
+            buy_tag = trade.buy_tag
+        buy_tags = buy_tag.split()
+
         # sell trail
         if 0.012 > current_profit >= 0.0:
             if (max_profit > (current_profit + 0.045)) and (last_candle['rsi'] < 46.0):
-                return 'sell_profit_t_0_1'
+                return f"sell_profit_t_0_1( {buy_tag})"
             elif (max_profit > (current_profit + 0.025)) and (last_candle['rsi'] < 32.0):
-                return 'sell_profit_t_0_2'
+                return f"sell_profit_t_0_2( {buy_tag})"
             elif (max_profit > (current_profit + 0.05)) and (last_candle['rsi'] < 48.0):
-                return 'sell_profit_t_0_3'
+                return f"sell_profit_t_0_3( {buy_tag})"
         elif 0.02 > current_profit >= 0.012:
             if (max_profit > (current_profit + 0.01)) and (last_candle['rsi'] < 39.0):
-                return 'sell_profit_t_1_1'
+                return f"sell_profit_t_1_1( {buy_tag})"
             elif (max_profit > (current_profit + 0.035)) and (last_candle['rsi'] < 45.0) and (last_candle['cmf'] < -0.0) and (last_candle['cmf_1h'] < -0.0):
-                return 'sell_profit_t_1_2'
+                return f"sell_profit_t_1_2( {buy_tag})"
             elif (max_profit > (current_profit + 0.02)) and (last_candle['rsi'] < 40.0) and (last_candle['cmf'] < -0.0) and (last_candle['cti_1h'] > 0.8):
-                return 'sell_profit_t_1_4'
+                return f"sell_profit_t_1_4( {buy_tag})"
             elif (max_profit > (current_profit + 0.04)) and (last_candle['rsi'] < 49.0) and (last_candle['cmf_1h'] < -0.0):
-                return 'sell_profit_t_1_5'
+                return f"sell_profit_t_1_5( {buy_tag})"
             elif (max_profit > (current_profit + 0.06)) and (last_candle['rsi'] < 43.0) and (last_candle['cmf'] < -0.0):
-                return 'sell_profit_t_1_7'
+                return f"sell_profit_t_1_7( {buy_tag})"
             elif (max_profit > (current_profit + 0.025)) and (last_candle['rsi'] < 40.0) and (last_candle['cmf'] < -0.1) and (last_candle['rsi_1h'] < 50.0):
-                return 'sell_profit_t_1_9'
+                return f"sell_profit_t_1_9( {buy_tag})"
             elif (max_profit > (current_profit + 0.025)) and (last_candle['rsi'] < 46.0) and (last_candle['cmf'] < -0.0) and (last_candle['r_480_1h'] > -20.0):
-                return 'sell_profit_t_1_10'
+                return f"sell_profit_t_1_10( {buy_tag})"
             elif (max_profit > (current_profit + 0.025)) and (last_candle['rsi'] < 42.0):
-                return 'sell_profit_t_1_11'
+                return f"sell_profit_t_1_11( {buy_tag})"
             elif (max_profit > (current_profit + 0.01)) and (last_candle['rsi'] < 44.0) and (last_candle['cmf'] < -0.25):
-                return 'sell_profit_t_1_12'
+                return f"sell_profit_t_1_12( {buy_tag})"
 
         if (last_candle['momdiv_sell_1h'] == True) and (current_profit > 0.02):
-            return 'signal_profit_q_momdiv_1h'
+            return f"signal_profit_q_momdiv_1h( {buy_tag})"
         if (last_candle['momdiv_sell'] == True) and (current_profit > 0.02):
-            return 'signal_profit_q_momdiv'
+            return f"signal_profit_q_momdiv( {buy_tag})"
         if (last_candle['momdiv_coh'] == True) and (current_profit > 0.02):
-            return 'signal_profit_q_momdiv_coh'
+            return f"signal_profit_q_momdiv_coh( {buy_tag})"
 
         # sell bear
         if last_candle['close'] < last_candle['ema_200']:
             if 0.02 > current_profit >= 0.01:
                 if (last_candle['rsi'] < 34.0) and (last_candle['cmf'] < 0.0):
-                    return 'sell_profit_u_bear_1_1'
+                    return f"sell_profit_u_bear_1_1( {buy_tag})"
                 elif (last_candle['rsi'] < 44.0) and (last_candle['cmf'] < -0.4):
-                    return 'sell_profit_u_bear_1_2'
+                    return f"sell_profit_u_bear_1_2( {buy_tag})"
 
         # sell quick
         if (0.06 > current_profit > 0.02) and (last_candle['rsi'] > 80.0):
-            return 'signal_profit_q_1'
+            return f"signal_profit_q_1( {buy_tag})"
 
         if (0.06 > current_profit > 0.02) and (last_candle['cti'] > 0.95):
-            return 'signal_profit_q_2'
+            return f"signal_profit_q_2( {buy_tag})"
 
         if (0.06 > current_profit > 0.02) and (last_candle['pm'] <= last_candle['pmax_thresh']) and (last_candle['close'] > last_candle['sma_21'] * 1.1):
-            return 'signal_profit_q_pmax_bull'
+            return f"signal_profit_q_pmax_bull( {buy_tag})"
         if (0.06 > current_profit > 0.02) and (last_candle['pm'] > last_candle['pmax_thresh']) and (last_candle['close'] > last_candle['sma_21'] * 1.016):
-            return 'signal_profit_q_pmax_bear'
+            return f"signal_profit_q_pmax_bear( {buy_tag})"
 
         if (
                 (current_profit < -0.05)
@@ -469,7 +490,7 @@ class BB_RPB_TSL(IStrategy):
                 and last_candle['rsi'] > previous_candle_1['rsi']
                 and (last_candle['rsi'] > (last_candle['rsi_1h'] + 10.0))
         ):
-            return 'sell_stoploss_u_e_1'
+            return f"sell_stoploss_u_e_1( {buy_tag})"
 
         # stoploss - deadfish
         if (    (current_profit < self.sell_deadfish_profit.value)
@@ -478,7 +499,7 @@ class BB_RPB_TSL(IStrategy):
                 and (last_candle['close'] > last_candle['bb_middleband2'] * self.sell_deadfish_bb_factor.value)
                 and (last_candle['volume_mean_12'] < last_candle['volume_mean_24'] * self.sell_deadfish_volume_factor.value)
             ):
-            return 'sell_stoploss_deadfish'
+            return f"sell_stoploss_deadfish( {buy_tag})"
 
         return None
 
@@ -637,6 +658,9 @@ class BB_RPB_TSL(IStrategy):
         dataframe['momdiv_coh'] = mom['momdiv_coh']
         dataframe['momdiv_col'] = mom['momdiv_col']
 
+        # T3 Average
+        dataframe['T3'] = T3(dataframe)
+
         return dataframe
 
     ############################################################################
@@ -743,7 +767,15 @@ class BB_RPB_TSL(IStrategy):
                 (dataframe['adx'] > self.buy_adx.value) &
                 (dataframe['EWO'] > self.buy_ewo_high.value) &
                 (dataframe['cti'] < self.buy_cofi_cti.value) &
-                (dataframe['r_14'] < self.buy_cofi_39_r14.value)
+                (dataframe['r_14'] < self.buy_cofi_r14.value)
+            )
+
+        is_gumbo = (
+                (dataframe['EWO'] < self.buy_gumbo_ewo_low.value) &
+                (dataframe['bb_middleband2_1h'] >= dataframe['T3_1h']) &
+                (dataframe['T3'] <= dataframe['ema_8'] * self.buy_gumbo_ema.value) &
+                (dataframe['cti'] < self.buy_gumbo_cti.value) &
+                (dataframe['r_14'] < self.buy_gumbo_r14.value)
             )
 
         # NFI quick mode
@@ -802,6 +834,16 @@ class BB_RPB_TSL(IStrategy):
                 (dataframe['r_14'] < self.buy_nfix_39_r14.value)
             )
 
+        is_nfix_51 = (
+                (dataframe['close'].shift(3) < dataframe['ema_16'].shift(3) * 0.944) &
+                (dataframe['EWO'].shift(3) < -1.0) &
+                (dataframe['rsi'].shift(3) > 28.0) &
+                (dataframe['cti'].shift(3) < -0.84) &
+                (dataframe['r_14'].shift(3) < -94.0) &
+                (dataframe['rsi'] > 30.0) &
+                (dataframe['crsi_1h'] > 1.0)
+            )
+
         is_additional_check = (
                 (dataframe['roc_1h'] < self.buy_roc_1h.value) &
                 (dataframe['bb_width_1h'] < self.buy_bb_width_1h.value)
@@ -834,6 +876,9 @@ class BB_RPB_TSL(IStrategy):
 
         conditions.append(is_cofi)                                                 # ~0.4 / 94.4% / 9.59%        D
         dataframe.loc[is_cofi, 'buy_tag'] += 'cofi '
+
+        conditions.append(is_gumbo)                                                 # ~2.63 / 90.6% / 41.49%     D
+        dataframe.loc[is_gumbo, 'buy_tag'] += 'gumbo '
 
         conditions.append(is_nfi_13)                                               # ~0.4 / 100%                 D
         dataframe.loc[is_nfi_13, 'buy_tag'] += 'nfi_13 '
@@ -980,3 +1025,25 @@ def momdiv(dataframe: DataFrame, mom_length: int = 10, bb_length: int = 20, bb_d
             "momdiv_col": col,
         }, index=dataframe['close'].index)
     return df
+
+def T3(dataframe, length=5):
+    """
+    T3 Average by HPotter on Tradingview
+    https://www.tradingview.com/script/qzoC9H1I-T3-Average/
+    """
+    df = dataframe.copy()
+
+    df['xe1'] = ta.EMA(df['close'], timeperiod=length)
+    df['xe2'] = ta.EMA(df['xe1'], timeperiod=length)
+    df['xe3'] = ta.EMA(df['xe2'], timeperiod=length)
+    df['xe4'] = ta.EMA(df['xe3'], timeperiod=length)
+    df['xe5'] = ta.EMA(df['xe4'], timeperiod=length)
+    df['xe6'] = ta.EMA(df['xe5'], timeperiod=length)
+    b = 0.7
+    c1 = -b * b * b
+    c2 = 3 * b * b + 3 * b * b * b
+    c3 = -6 * b * b - 3 * b - 3 * b * b * b
+    c4 = 1 + 3 * b + b * b * b + 3 * b * b
+    df['T3Average'] = c1 * df['xe6'] + c2 * df['xe5'] + c3 * df['xe4'] + c4 * df['xe3']
+
+    return df['T3Average']
