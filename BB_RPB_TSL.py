@@ -184,7 +184,7 @@ class BB_RPB_TSL(IStrategy):
         "sell_deadfish_profit": -0.05,
         "sell_deadfish_bb_factor": 0.954,
         "sell_deadfish_bb_width": 0.043,
-        "sell_deadfish_volume_factor": 2.37
+        "sell_deadfish_volume_factor": 2.37,
     }
 
     minimal_roi = {
@@ -315,9 +315,13 @@ class BB_RPB_TSL(IStrategy):
 
     is_optimize_deadfish = False
     sell_deadfish_bb_width = DecimalParameter(0.03, 0.75, default=0.05 , optimize = is_optimize_deadfish)
-    sell_deadfish_profit = DecimalParameter(-0.15, -0.05, default=-0.05 , optimize = True)
+    sell_deadfish_profit = DecimalParameter(-0.15, -0.05, default=-0.05 , optimize = is_optimize_deadfish)
     sell_deadfish_bb_factor = DecimalParameter(0.90, 1.20, default=1.0 , optimize = is_optimize_deadfish)
     sell_deadfish_volume_factor = DecimalParameter(1, 2.5, default=1.0 , optimize = is_optimize_deadfish)
+
+    is_optimize_cti_r = False
+    sell_cti_r_cti = DecimalParameter(0.5, 1, default=0.5 , optimize = is_optimize_cti_r)
+    sell_cti_r_r = DecimalParameter(-20, 0, default=-20 , optimize = is_optimize_cti_r)
 
     ############################################################################
 
@@ -455,6 +459,11 @@ class BB_RPB_TSL(IStrategy):
             elif (max_profit > (current_profit + 0.01)) and (last_candle['rsi'] < 44.0) and (last_candle['cmf'] < -0.25):
                 return f"sell_profit_t_1_12( {buy_tag})"
 
+        # sell cti_r
+        if 0.012 > current_profit >= 0.0:
+            if (last_candle['cti'] > self.sell_cti_r_cti.value) and (last_candle['r_14'] > self.sell_cti_r_r.value):
+                return f"sell_profit_t_cti_r_0_1( {buy_tag})"
+
         if (last_candle['momdiv_sell_1h'] == True) and (current_profit > 0.02):
             return f"signal_profit_q_momdiv_1h( {buy_tag})"
         if (last_candle['momdiv_sell'] == True) and (current_profit > 0.02):
@@ -517,11 +526,6 @@ class BB_RPB_TSL(IStrategy):
         if ((rate > dataframe['close'])) :
 
             slippage = ( (rate / dataframe['close']) - 1 ) * 100
-
-            #print("open rate is : " + str(rate))
-            #print("last candle close is : " + str(dataframe['close']))
-            #print("slippage is : " + str(slippage) )
-            #print("############################################################################")
 
             if slippage < max_slip:
                 return True
@@ -871,7 +875,7 @@ class BB_RPB_TSL(IStrategy):
         conditions.append(is_r_deadfish)                                           # ~0.99 / 86.9% / 21.93%      D
         dataframe.loc[is_r_deadfish, 'buy_tag'] += 'r_deadfish '
 
-        conditions.append(is_clucHA)                                               # ~7.34 / 86.6% / 100.11%     F
+        conditions.append(is_clucHA)                                               # ~6.65 / 90.8% / 55.89%      D
         dataframe.loc[is_clucHA, 'buy_tag'] += 'clucHA '
 
         conditions.append(is_cofi)                                                 # ~0.4 / 94.4% / 9.59%        D
@@ -889,7 +893,7 @@ class BB_RPB_TSL(IStrategy):
         conditions.append(is_nfi_33)                                               # ~0.11 / 100%                D
         dataframe.loc[is_nfi_33, 'buy_tag'] += 'nfi_33 '
 
-        conditions.append(is_nfi_38)                                               # ~1.07 / 83.2% / 70.22%      F
+        conditions.append(is_nfi_38)                                               # ~1.13 / 88.5% / 31.34%      D
         dataframe.loc[is_nfi_38, 'buy_tag'] += 'nfi_38 '
 
         conditions.append(is_nfix_5)                                               # ~0.25 / 97.7% / 6.53%       D
