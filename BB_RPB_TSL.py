@@ -185,6 +185,9 @@ class BB_RPB_TSL(IStrategy):
         "sell_deadfish_bb_factor": 0.954,
         "sell_deadfish_bb_width": 0.043,
         "sell_deadfish_volume_factor": 2.37,
+        ##
+        "sell_cti_r_cti": 0.844,
+        "sell_cti_r_r": -19.99
     }
 
     minimal_roi = {
