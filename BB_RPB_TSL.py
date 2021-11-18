@@ -181,7 +181,7 @@ class BB_RPB_TSL(IStrategy):
         "sell_ema": 0.988,
         "sell_ema_close_delta": 0.022,
         ##
-        "sell_deadfish_profit": -0.05,
+        "sell_deadfish_profit": -0.063,
         "sell_deadfish_bb_factor": 0.954,
         "sell_deadfish_bb_width": 0.043,
         "sell_deadfish_volume_factor": 2.37,
@@ -285,7 +285,7 @@ class BB_RPB_TSL(IStrategy):
     buy_gumbo_ema = DecimalParameter(0.9, 1.2, default=0.97 , optimize = is_optimize_gumbo)
     buy_gumbo_ewo_low = DecimalParameter(-12.0, 5, default=-5.585, optimize = is_optimize_gumbo)
 
-    is_optimize_gumbo_protection = True
+    is_optimize_gumbo_protection = False
     buy_gumbo_cti = DecimalParameter(-0.9, -0.0, default=-0.5 , optimize = is_optimize_gumbo_protection)
     buy_gumbo_r14 = DecimalParameter(-100, -44, default=-60 , optimize = is_optimize_gumbo_protection)
 
@@ -777,7 +777,7 @@ class BB_RPB_TSL(IStrategy):
                 (dataframe['r_14'] < self.buy_cofi_r14.value)
             )
 
-        is_gumbo = (
+        is_gumbo = (                                                                        # modified from gumbo1
                 (dataframe['EWO'] < self.buy_gumbo_ewo_low.value) &
                 (dataframe['bb_middleband2_1h'] >= dataframe['T3_1h']) &
                 (dataframe['T3'] <= dataframe['ema_8'] * self.buy_gumbo_ema.value) &
@@ -841,16 +841,6 @@ class BB_RPB_TSL(IStrategy):
                 (dataframe['r_14'] < self.buy_nfix_39_r14.value)
             )
 
-        is_nfix_51 = (
-                (dataframe['close'].shift(3) < dataframe['ema_16'].shift(3) * 0.944) &
-                (dataframe['EWO'].shift(3) < -1.0) &
-                (dataframe['rsi'].shift(3) > 28.0) &
-                (dataframe['cti'].shift(3) < -0.84) &
-                (dataframe['r_14'].shift(3) < -94.0) &
-                (dataframe['rsi'] > 30.0) &
-                (dataframe['crsi_1h'] > 1.0)
-            )
-
         is_additional_check = (
                 (dataframe['roc_1h'] < self.buy_roc_1h.value) &
                 (dataframe['bb_width_1h'] < self.buy_bb_width_1h.value)
@@ -884,7 +874,7 @@ class BB_RPB_TSL(IStrategy):
         conditions.append(is_cofi)                                                 # ~0.4 / 94.4% / 9.59%        D
         dataframe.loc[is_cofi, 'buy_tag'] += 'cofi '
 
-        conditions.append(is_gumbo)                                                 # ~2.63 / 90.6% / 41.49%     D
+        conditions.append(is_gumbo)                                                # ~2.63 / 90.6% / 41.49%      D
         dataframe.loc[is_gumbo, 'buy_tag'] += 'gumbo '
 
         conditions.append(is_nfi_13)                                               # ~0.4 / 100%                 D
