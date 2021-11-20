@@ -170,6 +170,10 @@ class BB_RPB_TSL(IStrategy):
         "buy_gumbo_cti": -0.374,
         "buy_gumbo_r14": -51.971,
         ##
+        "buy_sqzmom_ema": 0.981,
+        "buy_sqzmom_ewo": -3.966,
+        "buy_sqzmom_r14": -45.068,
+        ##
         "buy_nfix_39_cti": -0.105,
         "buy_nfix_39_r14": -81.827,
     }
@@ -288,6 +292,11 @@ class BB_RPB_TSL(IStrategy):
     is_optimize_gumbo_protection = False
     buy_gumbo_cti = DecimalParameter(-0.9, -0.0, default=-0.5 , optimize = is_optimize_gumbo_protection)
     buy_gumbo_r14 = DecimalParameter(-100, -44, default=-60 , optimize = is_optimize_gumbo_protection)
+
+    is_optimize_sqzmom_protection = True
+    buy_sqzmom_ema = DecimalParameter(0.9, 1.2, default=0.97 , optimize = is_optimize_sqzmom_protection)
+    buy_sqzmom_ewo = DecimalParameter(-12 , 12, default= 0 , optimize = is_optimize_sqzmom_protection)
+    buy_sqzmom_r14 = DecimalParameter(-100, -22, default=-50 , optimize = is_optimize_sqzmom_protection)
 
     is_optimize_nfix_39_protection = False
     buy_nfix_39_cti = DecimalParameter(-0.9, -0.0, default=-0.5 , optimize = is_optimize_nfix_39_protection)
@@ -463,7 +472,7 @@ class BB_RPB_TSL(IStrategy):
                 return f"sell_profit_t_1_12( {buy_tag})"
 
         # sell cti_r
-        if 0.012 > current_profit >= 0.0:
+        if 0.012 > current_profit >= 0.0 :
             if (last_candle['cti'] > self.sell_cti_r_cti.value) and (last_candle['r_14'] > self.sell_cti_r_r.value):
                 return f"sell_profit_t_cti_r_0_1( {buy_tag})"
 
@@ -579,6 +588,7 @@ class BB_RPB_TSL(IStrategy):
         dataframe['sma_9'] = ta.SMA(dataframe, timeperiod=9)
         dataframe['sma_15'] = ta.SMA(dataframe, timeperiod=15)
         dataframe['sma_21'] = ta.SMA(dataframe, timeperiod=21)
+        dataframe['sma_28'] = ta.SMA(dataframe, timeperiod=28)
         dataframe['sma_30'] = ta.SMA(dataframe, timeperiod=30)
         dataframe['sma_75'] = ta.SMA(dataframe, timeperiod=75)
 
@@ -668,6 +678,22 @@ class BB_RPB_TSL(IStrategy):
         # T3 Average
         dataframe['T3'] = T3(dataframe)
 
+        # True range
+        dataframe['trange'] = ta.TRANGE(dataframe)
+
+        # KC
+        dataframe['range_ma_28'] = ta.SMA(dataframe['trange'], 28)
+        dataframe['kc_upperband'] = dataframe['sma_28'] + dataframe['range_ma_28']
+        dataframe['kc_lowerband'] = dataframe['sma_28'] - dataframe['range_ma_28']
+
+        # Linreg
+        dataframe['hh_20'] = ta.MAX(dataframe['high'], 20)
+        dataframe['ll_20'] = ta.MIN(dataframe['low'], 20)
+        dataframe['avg_hh_ll_20'] = (dataframe['hh_20'] + dataframe['ll_20']) / 2
+        dataframe['avg_close_20'] = ta.SMA(dataframe['close'], 20)
+        dataframe['avg_val_20'] = (dataframe['avg_hh_ll_20'] + dataframe['avg_close_20']) / 2
+        dataframe['linreg_val_20'] = ta.LINEARREG(dataframe['close'] - dataframe['avg_val_20'], 20, 0)
+
         return dataframe
 
     ############################################################################
@@ -692,6 +718,11 @@ class BB_RPB_TSL(IStrategy):
                 (dataframe[f'rmi_length_{self.buy_rmi_length.value}'] < self.buy_rmi.value) &
                 (dataframe[f'cci_length_{self.buy_cci_length.value}'] <= self.buy_cci.value) &
                 (dataframe['srsi_fk'] < self.buy_srsi_fk.value)
+            )
+
+        is_sqzOff = (
+                (dataframe['bb_lowerband2'] < dataframe['kc_lowerband']) &
+                (dataframe['bb_upperband2'] > dataframe['kc_lowerband'])
             )
 
         is_break = (
@@ -785,6 +816,16 @@ class BB_RPB_TSL(IStrategy):
                 (dataframe['r_14'] < self.buy_gumbo_r14.value)
             )
 
+        is_sqzmom = (
+                (is_sqzOff) &
+                (dataframe['linreg_val_20'].shift(2) > dataframe['linreg_val_20'].shift(1)) &
+                (dataframe['linreg_val_20'].shift(1) < dataframe['linreg_val_20']) &
+                (dataframe['linreg_val_20'] < 0) &
+                (dataframe['close'] < dataframe['ema_13'] * self.buy_sqzmom_ema.value) &
+                (dataframe['EWO'] < self.buy_sqzmom_ewo.value) &
+                (dataframe['r_14'] < self.buy_sqzmom_r14.value)
+            )
+
         # NFI quick mode
         is_nfi_13 = (
                 (dataframe['ema_50_1h'] > dataframe['ema_100_1h']) &
@@ -876,6 +917,9 @@ class BB_RPB_TSL(IStrategy):
 
         conditions.append(is_gumbo)                                                # ~2.63 / 90.6% / 41.49%      D
         dataframe.loc[is_gumbo, 'buy_tag'] += 'gumbo '
+
+        conditions.append(is_sqzmom)                                               # ~3.14 / 92.4% / 64.14%      D
+        dataframe.loc[is_sqzmom, 'buy_tag'] += 'sqzmom '
 
         conditions.append(is_nfi_13)                                               # ~0.4 / 100%                 D
         dataframe.loc[is_nfi_13, 'buy_tag'] += 'nfi_13 '
