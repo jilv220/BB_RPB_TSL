@@ -175,6 +175,10 @@ class BB_RPB_TSL(IStrategy):
         "buy_sqzmom_ewo": -3.966,
         "buy_sqzmom_r14": -45.068,
         ##
+        "buy_kc_bb_close_delta": 0.008,
+        "buy_kc_bb_delta_low": 0.928,
+        "buy_kc_bb_cti": -0.809,
+        ##
         "buy_nfix_39_cti": -0.105,
         "buy_nfix_39_r14": -81.827,
     }
@@ -298,6 +302,13 @@ class BB_RPB_TSL(IStrategy):
     buy_sqzmom_ema = DecimalParameter(0.9, 1.2, default=0.97 , optimize = is_optimize_sqzmom_protection)
     buy_sqzmom_ewo = DecimalParameter(-12 , 12, default= 0 , optimize = is_optimize_sqzmom_protection)
     buy_sqzmom_r14 = DecimalParameter(-100, -22, default=-50 , optimize = is_optimize_sqzmom_protection)
+
+    is_optimize_kc_bb = True
+    buy_kc_bb_delta_low = DecimalParameter(0.0, 1.0, default=0.005 , optimize = is_optimize_kc_bb)
+    buy_kc_bb_close_delta = DecimalParameter(0.001, 0.05, default=0.04401, optimize = is_optimize_kc_bb)
+
+    is_optimize_kc_bb_protection = False
+    buy_kc_bb_cti = DecimalParameter(-0.9, -0.0, default=-0.5 , optimize = is_optimize_kc_bb_protection)
 
     is_optimize_nfix_39_protection = False
     buy_nfix_39_cti = DecimalParameter(-0.9, -0.0, default=-0.5 , optimize = is_optimize_nfix_39_protection)
@@ -606,6 +617,7 @@ class BB_RPB_TSL(IStrategy):
         # SMA
         dataframe['sma_9'] = ta.SMA(dataframe, timeperiod=9)
         dataframe['sma_15'] = ta.SMA(dataframe, timeperiod=15)
+        dataframe['sma_20'] = ta.SMA(dataframe, timeperiod=20)
         dataframe['sma_21'] = ta.SMA(dataframe, timeperiod=21)
         dataframe['sma_28'] = ta.SMA(dataframe, timeperiod=28)
         dataframe['sma_30'] = ta.SMA(dataframe, timeperiod=30)
@@ -702,8 +714,14 @@ class BB_RPB_TSL(IStrategy):
 
         # KC
         dataframe['range_ma_28'] = ta.SMA(dataframe['trange'], 28)
-        dataframe['kc_upperband'] = dataframe['sma_28'] + dataframe['range_ma_28']
-        dataframe['kc_lowerband'] = dataframe['sma_28'] - dataframe['range_ma_28']
+        dataframe['kc_upperband_28_1'] = dataframe['sma_28'] + dataframe['range_ma_28']
+        dataframe['kc_lowerband_28_1'] = dataframe['sma_28'] - dataframe['range_ma_28']
+
+        # KC 20
+        dataframe['range_ma_20'] = ta.SMA(dataframe['trange'], 20)
+        dataframe['kc_upperband_20_2'] = dataframe['sma_20'] + dataframe['range_ma_20'] * 2
+        dataframe['kc_lowerband_20_2'] = dataframe['sma_20'] - dataframe['range_ma_20'] * 2
+        dataframe['kc_bb_delta'] =  ( dataframe['kc_lowerband_20_2'] - dataframe['bb_lowerband2'] ) / dataframe['bb_lowerband2'] * 100
 
         # Linreg
         dataframe['hh_20'] = ta.MAX(dataframe['high'], 20)
@@ -712,6 +730,15 @@ class BB_RPB_TSL(IStrategy):
         dataframe['avg_close_20'] = ta.SMA(dataframe['close'], 20)
         dataframe['avg_val_20'] = (dataframe['avg_hh_ll_20'] + dataframe['avg_close_20']) / 2
         dataframe['linreg_val_20'] = ta.LINEARREG(dataframe['close'] - dataframe['avg_val_20'], 20, 0)
+
+        # AO
+        hl2 = (dataframe['high'] + dataframe['low']) / 2
+        dataframe["AO"] = ( ta.SMA(hl2, 5) - ta.SMA(hl2,34) ) * 1000
+
+        # STOCH
+        stoch = ta.STOCH(dataframe, 14, 3, 0, 3, 0)
+        dataframe['slowd'] = stoch['slowd']
+        dataframe['slowk'] = stoch['slowk']
 
         return dataframe
 
@@ -740,8 +767,8 @@ class BB_RPB_TSL(IStrategy):
             )
 
         is_sqzOff = (
-                (dataframe['bb_lowerband2'] < dataframe['kc_lowerband']) &
-                (dataframe['bb_upperband2'] > dataframe['kc_lowerband'])
+                (dataframe['bb_lowerband2'] < dataframe['kc_lowerband_28_1']) &
+                (dataframe['bb_upperband2'] > dataframe['kc_upperband_28_1'])
             )
 
         is_break = (
@@ -845,6 +872,16 @@ class BB_RPB_TSL(IStrategy):
                 (dataframe['r_14'] < self.buy_sqzmom_r14.value)
             )
 
+        is_KC_BB = (
+                (is_sqzOff) &
+                (dataframe['kc_bb_delta'] < 1.5) &
+                (dataframe['kc_bb_delta'] > self.buy_kc_bb_delta_low.value) &
+                (dataframe['r_14'] < -80) &
+                (dataframe['r_14'] > -90) &
+                (dataframe['cti'] < self.buy_kc_bb_cti.value) &
+                (dataframe['ha_closedelta'] > dataframe['ha_close'] * self.buy_kc_bb_close_delta.value)
+            )
+
         # NFI quick mode, credit goes to @iterativ
         is_nfi_13 = (
                 (dataframe['ema_50_1h'] > dataframe['ema_100_1h']) &
@@ -939,6 +976,9 @@ class BB_RPB_TSL(IStrategy):
 
         conditions.append(is_sqzmom)                                               # ~3.14 / 92.4% / 64.14%      D
         dataframe.loc[is_sqzmom, 'buy_tag'] += 'sqzmom '
+
+        conditions.append(is_KC_BB)                                                # ~6.02 / 86.8% / 73.91%      D          # frequent buyer, disable if u want
+        dataframe.loc[is_KC_BB, 'buy_tag'] += 'KC_BB '
 
         conditions.append(is_nfi_13)                                               # ~0.4 / 100%                 D
         dataframe.loc[is_nfi_13, 'buy_tag'] += 'nfi_13 '
