@@ -108,7 +108,7 @@ class BB_RPB_TSL(IStrategy):
 
     # buy space
     buy_params = {
-        "max_slip": 0.668,
+        "max_slip": 0.983,
         ##
         "buy_bb_width_1h": 0.954,
         "buy_roc_1h": 86,
@@ -303,7 +303,7 @@ class BB_RPB_TSL(IStrategy):
     buy_sqzmom_ewo = DecimalParameter(-12 , 12, default= 0 , optimize = is_optimize_sqzmom_protection)
     buy_sqzmom_r14 = DecimalParameter(-100, -22, default=-50 , optimize = is_optimize_sqzmom_protection)
 
-    is_optimize_kc_bb = True
+    is_optimize_kc_bb = False
     buy_kc_bb_delta_low = DecimalParameter(0.0, 1.0, default=0.005 , optimize = is_optimize_kc_bb)
     buy_kc_bb_close_delta = DecimalParameter(0.001, 0.05, default=0.04401, optimize = is_optimize_kc_bb)
 
@@ -325,8 +325,8 @@ class BB_RPB_TSL(IStrategy):
 
     ## Slippage params
 
-    is_optimize_slip = False
-    max_slip = DecimalParameter(0.33, 0.80, default=0.33, decimals=3, optimize=is_optimize_slip , load=True)
+    is_optimize_slip = True
+    max_slip = DecimalParameter(0.33, 1.00, default=0.33, decimals=3, optimize=is_optimize_slip , space='buy', load=True)
 
     ## Sell params
 
