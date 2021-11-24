@@ -177,10 +177,13 @@ class BB_RPB_TSL(IStrategy):
         ##
         "buy_kc_bb_close_delta": 0.008,
         "buy_kc_bb_delta_low": 0.928,
-        "buy_kc_bb_cti": -0.809,
+        "buy_kc_bb_cti": -0.862,
+        "buy_kc_bb_ewo": -10.25,
         ##
-        "buy_nfix_39_cti": -0.105,
-        "buy_nfix_39_r14": -81.827,
+        "buy_nfix_39_ema": 0.912,
+        ##
+        "buy_nfix_49_cti": -0.105,
+        "buy_nfix_49_r14": -81.827,
     }
 
     # sell space
@@ -308,11 +311,15 @@ class BB_RPB_TSL(IStrategy):
     buy_kc_bb_close_delta = DecimalParameter(0.001, 0.05, default=0.04401, optimize = is_optimize_kc_bb)
 
     is_optimize_kc_bb_protection = False
-    buy_kc_bb_cti = DecimalParameter(-0.9, -0.0, default=-0.5 , optimize = is_optimize_kc_bb_protection)
+    buy_kc_bb_cti = DecimalParameter(-1.0, -0.65, default=-0.8 , optimize = is_optimize_kc_bb_protection)
+    buy_kc_bb_ewo = DecimalParameter(-12.0, -8, default=-5.585, optimize = is_optimize_kc_bb_protection)
 
-    is_optimize_nfix_39_protection = False
-    buy_nfix_39_cti = DecimalParameter(-0.9, -0.0, default=-0.5 , optimize = is_optimize_nfix_39_protection)
-    buy_nfix_39_r14 = DecimalParameter(-100, -44, default=-60 , optimize = is_optimize_nfix_39_protection)
+    is_optimize_nfix_39 = True
+    buy_nfix_39_ema = DecimalParameter(0.9, 1.2, default=0.97 , optimize = is_optimize_nfix_39)
+
+    is_optimize_nfix_49_protection = False
+    buy_nfix_49_cti = DecimalParameter(-0.9, -0.0, default=-0.5 , optimize = is_optimize_nfix_49_protection)
+    buy_nfix_49_r14 = DecimalParameter(-100, -44, default=-60 , optimize = is_optimize_nfix_49_protection)
 
     is_optimize_btc_safe = False
     buy_btc_safe = IntParameter(-300, 50, default=-200, optimize = is_optimize_btc_safe)
@@ -325,7 +332,7 @@ class BB_RPB_TSL(IStrategy):
 
     ## Slippage params
 
-    is_optimize_slip = True
+    is_optimize_slip = False
     max_slip = DecimalParameter(0.33, 1.00, default=0.33, decimals=3, optimize=is_optimize_slip , space='buy', load=True)
 
     ## Sell params
@@ -417,6 +424,9 @@ class BB_RPB_TSL(IStrategy):
         # T3 Average
         informative_1h['T3'] = T3(informative_1h)
 
+        # Elliot
+        informative_1h['EWO'] = EWO(informative_1h, 50, 200)
+
         # Pump protections
         #informative_1h['hl_pct_change_48'] = range_percent_change(informative_1h, 'HL', length=48)
         #informative_1h['hl_pct_change_36'] = range_percent_change(informative_1h, 'HL', length=36)
@@ -453,6 +463,7 @@ class BB_RPB_TSL(IStrategy):
 
         last_candle = dataframe.iloc[-1]
         previous_candle_1 = dataframe.iloc[-2]
+        previous_candle_2 = dataframe.iloc[-3]
 
         max_profit = ((trade.max_rate - trade.open_rate) / trade.open_rate)
         max_loss = ((trade.open_rate - trade.min_rate) / trade.min_rate)
@@ -523,6 +534,18 @@ class BB_RPB_TSL(IStrategy):
             return f"signal_profit_q_pmax_bull( {buy_tag})"
         if (0.06 > current_profit > 0.02) and (last_candle['pm'] > last_candle['pmax_thresh']) and (last_candle['close'] > last_candle['sma_21'] * 1.016):
             return f"signal_profit_q_pmax_bear( {buy_tag})"
+
+        # sell scalp
+        if (current_profit > 0 and buy_tag in ['KC_BB ', 'nfix_39 ']):
+            if (
+                    (last_candle['fisher'] > 0.39075)
+                    and (last_candle['ha_high'] <= previous_candle_1['ha_high'])
+                    and (previous_candle_1['ha_high'] <= previous_candle_2['ha_high'])
+                    and (last_candle['ha_close'] <= previous_candle_1['ha_close'])
+                    and (last_candle['ema_4'] > last_candle['ha_close'])
+                    and (last_candle['ha_close'] * 0.99754 > last_candle['bb_middleband2'])
+                ):
+                return f"sell_scalp( {buy_tag})"
 
         if (
                 (current_profit < -0.05)
@@ -635,6 +658,7 @@ class BB_RPB_TSL(IStrategy):
         dataframe['crsi'] =  (ta.RSI(dataframe['close'], timeperiod=3) + ta.RSI(crsi_updown, timeperiod=2) + ta.ROC(dataframe['close'], 100)) / 3
 
         # EMA
+        dataframe['ema_4'] = ta.EMA(dataframe, timeperiod=4)
         dataframe['ema_8'] = ta.EMA(dataframe, timeperiod=8)
         dataframe['ema_12'] = ta.EMA(dataframe, timeperiod=12)
         dataframe['ema_13'] = ta.EMA(dataframe, timeperiod=13)
@@ -731,14 +755,9 @@ class BB_RPB_TSL(IStrategy):
         dataframe['avg_val_20'] = (dataframe['avg_hh_ll_20'] + dataframe['avg_close_20']) / 2
         dataframe['linreg_val_20'] = ta.LINEARREG(dataframe['close'] - dataframe['avg_val_20'], 20, 0)
 
-        # AO
-        hl2 = (dataframe['high'] + dataframe['low']) / 2
-        dataframe["AO"] = ( ta.SMA(hl2, 5) - ta.SMA(hl2,34) ) * 1000
-
-        # STOCH
-        stoch = ta.STOCH(dataframe, 14, 3, 0, 3, 0)
-        dataframe['slowd'] = stoch['slowd']
-        dataframe['slowk'] = stoch['slowk']
+        # fisher
+        rsi = 0.1 * (dataframe['rsi'] - 50)
+        dataframe["fisher"] = (np.exp(2 * rsi) - 1) / (np.exp(2 * rsi) + 1)
 
         return dataframe
 
@@ -879,6 +898,7 @@ class BB_RPB_TSL(IStrategy):
                 (dataframe['r_14'] < -80) &
                 (dataframe['r_14'] > -90) &
                 (dataframe['cti'] < self.buy_kc_bb_cti.value) &
+                (dataframe['EWO_1h'] > self.buy_kc_bb_ewo.value) &
                 (dataframe['ha_closedelta'] > dataframe['ha_close'] * self.buy_kc_bb_close_delta.value)
             )
 
@@ -927,6 +947,18 @@ class BB_RPB_TSL(IStrategy):
                 (dataframe['r_14'] < -97.0)
             )
 
+        is_nfix_39 = (
+                (dataframe['ema_200_1h'] > dataframe['ema_200_1h'].shift(12)) &
+                (dataframe['ema_200_1h'].shift(12) > dataframe['ema_200_1h'].shift(24)) &
+                (dataframe['bb_lowerband2_40'].shift().gt(0)) &
+                (dataframe['bb_delta_cluc'].gt(dataframe['close'] * 0.056)) &
+                (dataframe['closedelta'].gt(dataframe['close'] * 0.01)) &
+                (dataframe['tail'].lt(dataframe['bb_delta_cluc'] * 0.5)) &
+                (dataframe['close'].lt(dataframe['bb_lowerband2_40'].shift())) &
+                (dataframe['close'].le(dataframe['close'].shift())) &
+                (dataframe['close'] > dataframe['ema_13'] * self.buy_nfix_39_ema.value)
+            )
+
         is_nfix_49 = (
                 (dataframe['ema_26'].shift(3) > dataframe['ema_12'].shift(3)) &
                 (dataframe['ema_26'].shift(3) - dataframe['ema_12'].shift(3) > dataframe['open'].shift(3) * 0.032) &
@@ -934,8 +966,8 @@ class BB_RPB_TSL(IStrategy):
                 (dataframe['close'].shift(3) < dataframe['ema_20'].shift(3) * 0.916) &
                 (dataframe['rsi'].shift(3) < 32.5) &
                 (dataframe['crsi'].shift(3) > 18.0) &
-                (dataframe['cti'] < self.buy_nfix_39_cti.value) &
-                (dataframe['r_14'] < self.buy_nfix_39_r14.value)
+                (dataframe['cti'] < self.buy_nfix_49_cti.value) &
+                (dataframe['r_14'] < self.buy_nfix_49_r14.value)
             )
 
         is_additional_check = (
@@ -977,7 +1009,7 @@ class BB_RPB_TSL(IStrategy):
         conditions.append(is_sqzmom)                                               # ~3.14 / 92.4% / 64.14%      D
         dataframe.loc[is_sqzmom, 'buy_tag'] += 'sqzmom '
 
-        conditions.append(is_KC_BB)                                                # ~6.02 / 86.8% / 73.91%      D          # frequent buyer, disable if u want
+        conditions.append(is_KC_BB)                                                # ~3.11 / 88.7% / 30.25%      D
         dataframe.loc[is_KC_BB, 'buy_tag'] += 'KC_BB '
 
         conditions.append(is_nfi_13)                                               # ~0.4 / 100%                 D
@@ -994,6 +1026,9 @@ class BB_RPB_TSL(IStrategy):
 
         conditions.append(is_nfix_5)                                               # ~0.25 / 97.7% / 6.53%       D
         dataframe.loc[is_nfix_5, 'buy_tag'] += 'nfix_5 '
+
+        conditions.append(is_nfix_39)                                              # ~5.33 / 91.8% / 58.57%      D
+        dataframe.loc[is_nfix_39, 'buy_tag'] += 'nfix_39 '
 
         conditions.append(is_nfix_49)                                              # ~0.33 / 100% / 0%           D
         dataframe.loc[is_nfix_49, 'buy_tag'] += 'nfix_49 '
