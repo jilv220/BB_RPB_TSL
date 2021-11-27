@@ -268,6 +268,8 @@ class NFIX_BB_RPB(IStrategy):
         "buy_condition_108_enable": True,
         ## BB_RPB end
         ## nfi 7 begin
+        "buy_condition_701_enable": True,
+        "buy_condition_702_enable": True,
         ## nfi 7 end
         "buy_condition_35_enable": True,
         "buy_condition_36_enable": True,
@@ -1473,6 +1475,62 @@ class NFIX_BB_RPB(IStrategy):
             "safe_pump_12h_threshold"   : None,
             "safe_pump_24h_threshold"   : None,
             "safe_pump_36h_threshold"   : None,
+            "safe_pump_48h_threshold"   : None,
+            "btc_1h_not_downtrend"      : False,
+            "close_over_pivot_type"     : "none", # pivot, sup1, sup2, sup3, res1, res2, res3
+            "close_over_pivot_offset"   : 1.0,
+            "close_under_pivot_type"    : "none", # pivot, sup1, sup2, sup3, res1, res2, res3
+            "close_under_pivot_offset"  : 1.0
+        },
+        701: {
+            "ema_fast"                  : False,
+            "ema_fast_len"              : "50",
+            "ema_slow"                  : False,
+            "ema_slow_len"              : "12",
+            "close_above_ema_fast"      : False,
+            "close_above_ema_fast_len"  : "200",
+            "close_above_ema_slow"      : False,
+            "close_above_ema_slow_len"  : "200",
+            "sma200_rising"             : False,
+            "sma200_rising_val"         : "30",
+            "sma200_1h_rising"          : False,
+            "sma200_1h_rising_val"      : "50",
+            "safe_dips_threshold_0"     : 0.029,
+            "safe_dips_threshold_2"     : 0.09,
+            "safe_dips_threshold_12"    : None,
+            "safe_dips_threshold_144"   : None,
+            "safe_pump_6h_threshold"    : 0.5,
+            "safe_pump_12h_threshold"   : None,
+            "safe_pump_24h_threshold"   : None,
+            "safe_pump_36h_threshold"   : None,
+            "safe_pump_48h_threshold"   : None,
+            "btc_1h_not_downtrend"      : False,
+            "close_over_pivot_type"     : "none", # pivot, sup1, sup2, sup3, res1, res2, res3
+            "close_over_pivot_offset"   : 1.0,
+            "close_under_pivot_type"    : "none", # pivot, sup1, sup2, sup3, res1, res2, res3
+            "close_under_pivot_offset"  : 1.0
+        },
+        702: {
+            "ema_fast"                  : False,
+            "ema_fast_len"              : "50",
+            "ema_slow"                  : False,
+            "ema_slow_len"              : "100",
+            "close_above_ema_fast"      : False,
+            "close_above_ema_fast_len"  : "200",
+            "close_above_ema_slow"      : False,
+            "close_above_ema_slow_len"  : "100",
+            "sma200_rising"             : False,
+            "sma200_rising_val"         : "30",
+            "sma200_1h_rising"          : False,
+            "sma200_1h_rising_val"      : "50",
+            "safe_dips_threshold_0"     : 0.028,
+            "safe_dips_threshold_2"     : 0.09,
+            "safe_dips_threshold_12"    : 0.48,
+            "safe_dips_threshold_144"   : 0.9,
+            "safe_pump_6h_threshold"    : 0.4,
+            "safe_pump_12h_threshold"   : None,
+            "safe_pump_24h_threshold"   : None,
+            "safe_pump_36h_threshold"   : 0.9,
             "safe_pump_48h_threshold"   : None,
             "btc_1h_not_downtrend"      : False,
             "close_over_pivot_type"     : "none", # pivot, sup1, sup2, sup3, res1, res2, res3
@@ -6777,6 +6835,11 @@ class NFIX_BB_RPB(IStrategy):
         informative_1h['hl_pct_change_12'] = self.range_percent_change(informative_1h, 'HL', 12)
         informative_1h['hl_pct_change_6'] = self.range_percent_change(informative_1h, 'HL', 6)
 
+        # nfi 37
+        informative_1h['hl_pct_change_5'] = self.range_percent_change(informative_1h, 'HL', 5)
+        informative_1h['low_5'] = informative_1h['low'].shift().rolling(5).min()
+        informative_1h['safe_dump_50'] = ((informative_1h['hl_pct_change_5'] < 0.66) | (informative_1h['close'] < informative_1h['low_5']) | (informative_1h['close'] > informative_1h['open']))
+
         tok = time.perf_counter()
         log.debug(f"[{metadata['pair']}] informative_1h_indicators took: {tok - tik:0.4f} seconds.")
 
@@ -6986,6 +7049,14 @@ class NFIX_BB_RPB(IStrategy):
 
         # T3 Average
         dataframe['T3'] = T3(dataframe)
+
+        # Modified Elder Ray Index
+        dataframe['moderi_32'] = moderi(dataframe, 32)
+        dataframe['moderi_64'] = moderi(dataframe, 64)
+        dataframe['moderi_96'] = moderi(dataframe, 96)
+
+        # Zero-Lag EMA
+        dataframe['zema_61'] = zema(dataframe, period=61)
 
         # Dip protection
         dataframe['tpct_change_0']   = self.top_percent_change(dataframe,0)
@@ -7717,6 +7788,30 @@ class NFIX_BB_RPB(IStrategy):
                     item_buy_logic.append(dataframe['cti'] < -0.374)
                     item_buy_logic.append(dataframe['r_14'] < -51.971)
 
+                # nfi7 33
+                elif index == 701:
+                    # Non-Standard protections
+
+                    # Logic
+                    item_buy_logic.append(dataframe['moderi_96'])
+                    item_buy_logic.append(dataframe['cti'] < -0.88)
+                    item_buy_logic.append(dataframe['close'] < (dataframe['ema_13'] * 0.988))
+                    item_buy_logic.append(dataframe['ewo'] > 6.4)
+                    item_buy_logic.append(dataframe['rsi_14'] < 32)
+                    item_buy_logic.append(dataframe['volume'] < (dataframe['volume_mean_4'] * 2.0))
+
+                # nfi7 37
+                elif index == 702:
+                    # Non-Standard protections
+
+                    # Logic
+                    item_buy_logic.append(dataframe['pm'] > dataframe['pmax_thresh'])
+                    item_buy_logic.append(dataframe['close'] < dataframe['sma_75'] * 0.98)
+                    item_buy_logic.append(dataframe['ewo'] > 9.8)
+                    item_buy_logic.append(dataframe['rsi_14'] < 56.0)
+                    item_buy_logic.append(dataframe['cti'] < -0.7)
+                    item_buy_logic.append(dataframe['safe_dump_50_1h'])
+
                 # Condition #35 - Long mode. Local deep dip.
                 elif index == 35:
                     # Non-Standard protections
@@ -8366,6 +8461,11 @@ def T3(dataframe, length=5):
     df['T3Average'] = c1 * df['xe6'] + c2 * df['xe5'] + c3 * df['xe4'] + c4 * df['xe3']
 
     return df['T3Average']
+
+# Modified Elder Ray Index
+def moderi(dataframe: DataFrame, len_slow_ma: int = 32) -> Series:
+    slow_ma = Series(ta.EMA(vwma(dataframe, length=len_slow_ma), timeperiod=len_slow_ma))
+    return slow_ma >= slow_ma.shift(1)  # we just need true & false for ERI trend
 
 class Cache:
 
