@@ -16,7 +16,7 @@
                         // Other Coins
                         "(SLP|XVS|MEM|AMPL|XYM|POLX|CARR|SKEY|MASK|KLV|TLOS|JAR|BTCST|SUPER|LAYER|CTSI|MKR|HYDRA|DEGO)/.*",
                         // Other A
-                        "(LPT|LRC|LTX|MIR|STMX|SXP|ZEC|VELO|SUN|CIRUS|REVV|XSR|VSYS|CBC|SCLP|ANKR)/.*",
+                        "(LPT|LRC|LTX|MIR|STMX|SXP|ZEC|VELO|SUN|CIRUS|REVV|XSR|VSYS|CBC|SCLP|ANKR|UOS|PNT)/.*",
                     ]
                 },
             }
