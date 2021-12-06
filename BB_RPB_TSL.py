@@ -601,6 +601,17 @@ class BB_RPB_TSL(IStrategy):
 
         return True
 
+    ## Confirm Exit
+    def confirm_trade_exit(self, pair: str, trade: Trade, order_type: str, amount: float,
+                           rate: float, time_in_force: str, sell_reason: str,
+                           current_time: datetime, **kwargs) -> bool:
+        #True no stoploss  (be carefull when not using a stoploss other than -0.99, this would disable the stoploss))      
+        # to not use stoploss from Freqtrade based on NFIX (-0.99 != to no stoploss)
+        if (sell_reason == 'stop_loss'):
+            return False
+
+        return True    
+
     ############################################################################
 
     def normal_tf_indicators(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
