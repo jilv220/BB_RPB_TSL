@@ -2,27 +2,24 @@
         "pairlists": [
         {
                         "method": "VolumePairList",
-                        "number_assets": 120,
+                        "number_assets": 100,
                         "sort_key": "quoteVolume",
                         "refresh_period": 1800,
                 },
                 {"method": "AgeFilter", "min_days_listed": 14},
                 {"method": "SpreadFilter", "max_spread_ratio": 0.006},
-                {
-                        "method": "PriceFilter",
-                        "min_price": 0.001
-                },
                 { 
                         "method": "RangeStabilityFilter",
                         "lookback_days": 3,
                         "min_rate_of_change": 0.05,
+                        "max_rate_of_change": 0.99,
                         "refresh_period": 1800
                 },
                 { 
                         "method": "VolatilityFilter",
                         "lookback_days": 3,
                         "min_volatility": 0.02,
-                        "max_volatility": 0.42,
+                        "max_volatility": 0.62,
                         "refresh_period": 1800
                 },
         {"method": "ShuffleFilter"},
