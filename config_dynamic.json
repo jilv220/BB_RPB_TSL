@@ -22,12 +22,6 @@
                         "max_volatility": 0.62,
                         "refresh_period": 1800
                 },
-        {"method": "ShuffleFilter"},
-        {
-            "method": "VolumePairList",
-                        "number_assets": 80,
-                        "sort_key": "quoteVolume",
-                        "refresh_period": 1800,
-        }
+                {"method": "ShuffleFilter"}
     ],
 }
