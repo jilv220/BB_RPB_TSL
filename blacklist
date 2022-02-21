@@ -14,7 +14,7 @@
                         // FAN Tokens
                         "(ACM|AFA|ALA|ALL|APL|ASR|ATM|BAR|CAI|CITY|FOR|GAL|GOZ|IBFK|JUV|LEG|LOCK-1|NAVI|NMR|NOV|OG|PFL|PSG|ROUSH|STV|TH|TRA|UCH|UFC|YBO)/.*",
                         // Other Coins
-                        "(SLP|XVS|MEM|AMPL|XYM|POLX|CARR|SKEY|MASK|KLV|TLOS|JAR|BTCST|SUPER|LAYER|CTSI|MKR|HYDRA|DEGO)/.*",
+                        "(SLP|XVS|MEM|AMPL|XYM|POLX|CARR|SKEY|MASK|KLV|TLOS|JAR|BTCST|SUPER|LAYER|CTSI|MKR|HYDRA|DEGO|LOVE)/.*",
                         // Other A
                         "(LPT|LRC|LTX|MIR|STMX|SXP|ZEC|VELO|SUN|CIRUS|REVV|XSR|VSYS|CBC|SCLP|ANKR|UOS|PNT|NIF|WOM|FKX|CLV)/.*",
                     ]
